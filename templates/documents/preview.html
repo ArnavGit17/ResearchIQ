@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Preview: {{ document.original_filename }} - ResearchIQ{% endblock %}
+
+{% block page_title %}Document Preview{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <a href="{{ url_for('document_bp.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Documents
+            </a>
+            <div class="d-flex gap-2">
+                <button id="btn-analyze" class="btn btn-primary" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-lightning-charge" id="btn-analyze-icon"></i> 
+                    <span id="btn-analyze-text">Run NLP Analysis</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Document Metadata -->
+    <div class="col-lg-4 mb-4 mb-lg-0">
+        <div class="riq-card p-4 h-100">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center bg-dark-subtle rounded-circle p-4 mb-3">
+                    <i class="bi {{ document.icon }} display-4 text-primary"></i>
+                </div>
+                <h5 class="text-break">{{ document.original_filename }}</h5>
+                <span class="badge bg-secondary text-uppercase">{{ document.file_type }}</span>
+            </div>
+
+            <hr class="border-secondary opacity-25">
+
+            <div class="mb-4">
+                <h6 class="text-uppercase text-muted small fw-bold mb-3">Properties</h6>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-secondary">Size</span>
+                    <span class="fw-medium">{{ document.file_size_display }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-secondary">Uploaded</span>
+                    <span class="fw-medium">{{ document.upload_date.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-secondary">Status</span>
+                    <span class="fw-medium">
+                        {% if document.processing_status == 'success' %}
+                            <span class="text-success"><i class="bi bi-check-circle"></i> Cleaned</span>
+                        {% elif document.processing_status == 'failed' %}
+                            <span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Failed</span>
+                        {% else %}
+                            <span class="text-warning"><i class="bi bi-hourglass-split"></i> Pending</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <hr class="border-secondary opacity-25">
+
+            <div>
+                <h6 class="text-uppercase text-muted small fw-bold mb-3">Text Statistics</h6>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-secondary">Word Count</span>
+                    <span class="fw-medium">{{ document.word_count | default(0, true) }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-secondary">Sentence Count</span>
+                    <span class="fw-medium">{{ document.sentence_count | default(0, true) }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-secondary">Character Count</span>
+                    <span class="fw-medium">{{ document.character_count | default(0, true) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Content Preview -->
+    <div class="col-lg-8">
+        <div class="riq-card p-0 h-100 d-flex flex-column">
+            <div class="p-4 border-bottom border-secondary border-opacity-25 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-body-text text-primary me-2"></i> Extracted Text Preview</h5>
+                <span class="badge bg-dark">First 2000 chars</span>
+            </div>
+            
+            <div class="p-4 flex-grow-1 bg-dark bg-opacity-10" style="overflow-y: auto; max-height: 600px;">
+                {% if document.processing_status == 'success' and preview_text %}
+                    <pre class="font-monospace text-light text-wrap" style="white-space: pre-wrap; font-size: 0.9rem;">{{ preview_text }}</pre>
+                {% elif document.processing_status == 'failed' %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-exclamation-triangle display-4 text-danger mb-3 d-block opacity-75"></i>
+                        <h5 class="text-danger">Extraction Failed</h5>
+                        <p class="text-secondary">There was an error parsing the text from this document.</p>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-hourglass-split display-4 text-warning mb-3 d-block opacity-75"></i>
+                        <h5 class="text-warning">Processing Pending</h5>
+                        <p class="text-secondary">The document text has not been extracted yet.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btnAnalyze = document.getElementById('btn-analyze');
+    if (!btnAnalyze) return;
+    
+    btnAnalyze.addEventListener('click', async function() {
+        const docId = this.getAttribute('data-doc-id');
+        const icon = document.getElementById('btn-analyze-icon');
+        const text = document.getElementById('btn-analyze-text');
+        
+        // Update UI state
+        btnAnalyze.disabled = true;
+        icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm';
+        text.innerText = ' Processing...';
+        
+        try {
+            // Include CSRF token in header
+            const csrfToken = '{{ csrf_token() }}';
+            
+            const response = await fetch(`/api/preprocess/${docId}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Success: Redirect to NLP Lab
+                window.location.href = `{{ url_for('nlp.laboratory') }}?doc=${docId}`;
+            } else {
+                // Error
+                alert(data.error || 'An error occurred during processing.');
+                resetBtn();
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to connect to the server.');
+            resetBtn();
+        }
+        
+        function resetBtn() {
+            btnAnalyze.disabled = false;
+            icon.className = 'bi bi-lightning-charge';
+            text.innerText = ' Run NLP Analysis';
+        }
+    });
+});
+</script>
+{% endblock %}

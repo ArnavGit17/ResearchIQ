@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Welcome back, <strong>{{ current_user.username }}</strong> — here's your research overview.</p>
+  </div>
+  <a href="{{ url_for('upload.index') }}" class="riq-btn-primary">
+    <i class="bi bi-plus-lg me-2"></i>Upload Document
+  </a>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row g-4 mb-4">
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-card--blue">
+      <div class="stat-card-icon"><i class="bi bi-file-earmark-fill"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-value" data-target="{{ stats.documents }}">0</div>
+        <div class="stat-label">Documents Uploaded</div>
+      </div>
+      <div class="stat-card-bg-icon"><i class="bi bi-files"></i></div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-card--violet">
+      <div class="stat-card-icon"><i class="bi bi-cpu-fill"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-value" data-target="{{ stats.analyses }}">0</div>
+        <div class="stat-label">NLP Analyses</div>
+      </div>
+      <div class="stat-card-bg-icon"><i class="bi bi-braces"></i></div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-card--teal">
+      <div class="stat-card-icon"><i class="bi bi-patch-question-fill"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-value" data-target="{{ stats.questions }}">0</div>
+        <div class="stat-label">Questions Asked</div>
+      </div>
+      <div class="stat-card-bg-icon"><i class="bi bi-chat-dots"></i></div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="stat-card stat-card--amber">
+      <div class="stat-card-icon"><i class="bi bi-file-earmark-check-fill"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-value" data-target="{{ stats.summaries }}">0</div>
+        <div class="stat-label">Summaries Generated</div>
+      </div>
+      <div class="stat-card-bg-icon"><i class="bi bi-journal-text"></i></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- NLP Pipeline Visual + Recent Docs -->
+<div class="row g-4 mb-4">
+
+  <!-- NLP Pipeline -->
+  <div class="col-12 col-lg-6">
+    <div class="riq-card h-100">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-diagram-3-fill me-2 text-primary"></i>NLP Pipeline</h5>
+        <span class="badge riq-badge-info">Multi-Level</span>
+      </div>
+      <div class="riq-card-body">
+        <div class="pipeline-container">
+          {% set pipeline = [
+            ('Preprocessing', 'bi-funnel-fill', 'Tokenisation, segmentation, stop-word removal', 'pipeline-step--blue'),
+            ('Morphology',    'bi-alphabet',     'POS tagging, lemmatisation, morpheme analysis', 'pipeline-step--violet'),
+            ('Syntax',        'bi-diagram-3',    'Dependency parsing, parse trees',               'pipeline-step--teal'),
+            ('Semantic',      'bi-bezier2',      'NER, word sense, coreference resolution',        'pipeline-step--green'),
+            ('Pragmatics',    'bi-chat-quote',   'Sentiment, discourse, speech acts',             'pipeline-step--amber'),
+          ] %}
+          {% for name, icon, desc, cls in pipeline %}
+          <div class="pipeline-step {{ cls }}">
+            <div class="pipeline-step-icon"><i class="bi {{ icon }}"></i></div>
+            <div class="pipeline-step-body">
+              <strong>{{ name }}</strong>
+              <small>{{ desc }}</small>
+            </div>
+            {% if not loop.last %}<div class="pipeline-arrow"><i class="bi bi-arrow-down-short"></i></div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Documents -->
+  <div class="col-12 col-lg-6">
+    <div class="riq-card h-100">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-clock-fill me-2 text-warning"></i>Recent Documents</h5>
+        <a href="{{ url_for('upload.index') }}" class="riq-link">View all</a>
+      </div>
+      <div class="riq-card-body p-0">
+        {% if recent_docs %}
+          <div class="doc-list">
+            {% for doc in recent_docs %}
+            <div class="doc-list-item">
+              <div class="doc-list-icon {{ 'icon-pdf' if doc.file_type == 'pdf' else ('icon-docx' if doc.file_type == 'docx' else 'icon-txt') }}">
+                <i class="bi {{ doc.icon }}"></i>
+              </div>
+              <div class="doc-list-info">
+                <span class="doc-list-name" title="{{ doc.original_filename }}">{{ doc.original_filename | truncate(32) }}</span>
+                <span class="doc-list-meta">{{ doc.file_size_display }} &bull; {{ doc.upload_date.strftime('%d %b %Y') }}</span>
+              </div>
+              <span class="doc-list-badge status-{{ doc.status }}">{{ doc.status }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <i class="bi bi-folder-plus empty-state-icon"></i>
+            <p class="empty-state-text">No documents yet. Upload your first research paper!</p>
+            <a href="{{ url_for('upload.index') }}" class="riq-btn-primary btn-sm mt-2">
+              <i class="bi bi-upload me-1"></i>Upload Now
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Quick-Access Module Cards -->
+<div class="riq-card mb-4">
+  <div class="riq-card-header">
+    <h5 class="riq-card-title"><i class="bi bi-grid-fill me-2 text-info"></i>NLP Modules</h5>
+  </div>
+  <div class="riq-card-body">
+    <div class="row g-3">
+      {% set modules = [
+        ('Syntax Analysis',    'nlp.syntax',        'bi-diagram-3-fill',        '#4f8ef7', 'Dependency parsing & parse trees'),
+        ('Semantic Analysis',  'nlp.semantic',      'bi-bezier2',               '#8b5cf6', 'NER & semantic role labelling'),
+        ('Pragmatic Analysis', 'nlp.pragmatic',     'bi-chat-quote-fill',       '#14b8a6', 'Sentiment & discourse analysis'),
+        ('Research Assistant', 'nlp.assistant',     'bi-robot',                 '#f59e0b', 'AI-powered research guidance'),
+        ('Semantic Search',    'nlp.search',        'bi-search-heart-fill',     '#ec4899', 'Dense vector search'),
+        ('Q&A Engine',         'nlp.qa',            'bi-patch-question-fill',   '#22c55e', 'Evidence-backed answers'),
+        ('Summarization',      'nlp.summarization', 'bi-file-earmark-check-fill','#06b6d4', 'Extractive & abstractive summaries'),
+        ('Analytics',          'analytics.index',   'bi-bar-chart-fill',        '#f97316', 'Usage insights & statistics'),
+      ] %}
+      {% for name, endpoint, icon, color, desc in modules %}
+      <div class="col-6 col-md-4 col-xl-3">
+        <a href="{{ url_for(endpoint) }}" class="module-card">
+          <div class="module-card-icon" style="color:{{ color }};">
+            <i class="bi {{ icon }}"></i>
+          </div>
+          <div class="module-card-name">{{ name }}</div>
+          <div class="module-card-desc">{{ desc }}</div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Animated counter for stat cards
+document.querySelectorAll('.stat-value[data-target]').forEach(el => {
+  const target = parseInt(el.dataset.target);
+  if (target === 0) { el.textContent = '0'; return; }
+  let count = 0, step = Math.max(1, Math.floor(target / 40));
+  const timer = setInterval(() => {
+    count = Math.min(count + step, target);
+    el.textContent = count;
+    if (count >= target) clearInterval(timer);
+  }, 30);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Create Account{% endblock %}
+{% block auth_content %}
+
+<div class="auth-card-wrapper">
+  <!-- Left Panel -->
+  <div class="auth-panel-left">
+    <div class="auth-brand">
+      <div class="auth-brand-icon"><i class="bi bi-cpu-fill"></i></div>
+      <h1 class="auth-brand-name">ResearchIQ</h1>
+      <p class="auth-brand-sub">Explainable Multi-Level NLP<br>Research Intelligence Platform</p>
+    </div>
+    <div class="auth-features">
+      <div class="auth-feature-item">
+        <i class="bi bi-lightning-charge-fill"></i>
+        <span>Multi-Level NLP Analysis</span>
+      </div>
+      <div class="auth-feature-item">
+        <i class="bi bi-shield-fill-check"></i>
+        <span>Secure Document Storage</span>
+      </div>
+      <div class="auth-feature-item">
+        <i class="bi bi-graph-up-arrow"></i>
+        <span>AI-Powered Insights</span>
+      </div>
+      <div class="auth-feature-item">
+        <i class="bi bi-patch-question-fill"></i>
+        <span>Intelligent Q&amp;A Engine</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel – Form -->
+  <div class="auth-panel-right">
+    <div class="auth-form-box">
+      <div class="auth-form-header">
+        <h2>Create Account</h2>
+        <p>Join ResearchIQ and start analysing your research</p>
+      </div>
+
+      <form method="POST" action="{{ url_for('auth.register') }}" novalidate>
+        <div class="riq-form-group">
+          <label for="username" class="riq-label">Username</label>
+          <div class="riq-input-wrapper">
+            <i class="bi bi-person-fill riq-input-icon"></i>
+            <input type="text" id="username" name="username" class="riq-input"
+                   placeholder="Choose a username" required autocomplete="username" />
+          </div>
+        </div>
+
+        <div class="riq-form-group">
+          <label for="email" class="riq-label">Email Address</label>
+          <div class="riq-input-wrapper">
+            <i class="bi bi-envelope-fill riq-input-icon"></i>
+            <input type="email" id="email" name="email" class="riq-input"
+                   placeholder="your@email.com" required autocomplete="email" />
+          </div>
+        </div>
+
+        <div class="riq-form-group">
+          <label for="password" class="riq-label">Password</label>
+          <div class="riq-input-wrapper">
+            <i class="bi bi-lock-fill riq-input-icon"></i>
+            <input type="password" id="password" name="password" class="riq-input"
+                   placeholder="At least 8 characters" required autocomplete="new-password" />
+            <button type="button" class="riq-input-toggle" onclick="togglePassword('password','toggleIcon1')">
+              <i class="bi bi-eye-fill" id="toggleIcon1"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="riq-form-group">
+          <label for="confirm_password" class="riq-label">Confirm Password</label>
+          <div class="riq-input-wrapper">
+            <i class="bi bi-lock-fill riq-input-icon"></i>
+            <input type="password" id="confirm_password" name="confirm_password" class="riq-input"
+                   placeholder="Repeat your password" required autocomplete="new-password" />
+            <button type="button" class="riq-input-toggle" onclick="togglePassword('confirm_password','toggleIcon2')">
+              <i class="bi bi-eye-fill" id="toggleIcon2"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Password strength indicator -->
+        <div class="pw-strength-bar mb-3">
+          <div class="pw-strength-fill" id="pwStrengthFill"></div>
+        </div>
+        <p class="pw-strength-label" id="pwStrengthLabel"></p>
+
+        <button type="submit" class="riq-btn-primary w-100 mt-2" id="registerBtn">
+          <i class="bi bi-person-plus-fill me-2"></i>Create Account
+        </button>
+      </form>
+
+      <p class="auth-switch-text">
+        Already have an account?
+        <a href="{{ url_for('auth.login') }}" class="auth-switch-link">Sign In</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePassword(fieldId, iconId) {
+  const f = document.getElementById(fieldId);
+  const i = document.getElementById(iconId);
+  if (f.type === 'password') { f.type = 'text'; i.className = 'bi bi-eye-slash-fill'; }
+  else { f.type = 'password'; i.className = 'bi bi-eye-fill'; }
+}
+// Password strength meter
+document.getElementById('password').addEventListener('input', function () {
+  const v = this.value, fill = document.getElementById('pwStrengthFill'), lbl = document.getElementById('pwStrengthLabel');
+  let score = 0;
+  if (v.length >= 8) score++;
+  if (/[A-Z]/.test(v)) score++;
+  if (/[0-9]/.test(v)) score++;
+  if (/[^A-Za-z0-9]/.test(v)) score++;
+  const levels = [
+    { cls: 'strength-weak',   label: 'Weak',      pct: '25%'  },
+    { cls: 'strength-fair',   label: 'Fair',      pct: '50%'  },
+    { cls: 'strength-good',   label: 'Good',      pct: '75%'  },
+    { cls: 'strength-strong', label: 'Strong',    pct: '100%' },
+  ];
+  if (!v) { fill.style.width = '0'; lbl.textContent = ''; return; }
+  const lvl = levels[Math.max(score - 1, 0)];
+  fill.style.width = lvl.pct;
+  fill.className = 'pw-strength-fill ' + lvl.cls;
+  lbl.textContent = lvl.label;
+});
+</script>
+{% endblock %}

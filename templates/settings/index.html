@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block breadcrumb %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-subtitle">Manage your account and application preferences.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Profile Settings -->
+  <div class="col-12 col-lg-6">
+    <div class="riq-card">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-person-circle me-2 text-primary"></i>Profile</h5>
+      </div>
+      <div class="riq-card-body">
+        <!-- Avatar -->
+        <div class="settings-avatar-row mb-4">
+          <div class="settings-avatar">{{ current_user.username[0].upper() }}</div>
+          <div>
+            <p class="fw-semibold mb-0">{{ current_user.username }}</p>
+            <small class="text-muted">{{ current_user.email }}</small><br>
+            <small class="text-muted">Member since {{ current_user.created_at.strftime('%B %Y') }}</small>
+          </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('settings.index') }}">
+          <input type="hidden" name="action" value="update_profile" />
+          <div class="riq-form-group">
+            <label class="riq-label">Username</label>
+            <div class="riq-input-wrapper">
+              <i class="bi bi-person-fill riq-input-icon"></i>
+              <input type="text" name="username" class="riq-input" value="{{ current_user.username }}" />
+            </div>
+          </div>
+          <div class="riq-form-group">
+            <label class="riq-label">Email Address</label>
+            <div class="riq-input-wrapper">
+              <i class="bi bi-envelope-fill riq-input-icon"></i>
+              <input type="email" class="riq-input" value="{{ current_user.email }}" disabled />
+            </div>
+            <small class="text-muted">Email cannot be changed after registration.</small>
+          </div>
+          <button type="submit" class="riq-btn-primary">
+            <i class="bi bi-check2 me-2"></i>Save Changes
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password -->
+  <div class="col-12 col-lg-6">
+    <div class="riq-card">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-lock-fill me-2 text-danger"></i>Change Password</h5>
+      </div>
+      <div class="riq-card-body">
+        <form method="POST" action="{{ url_for('settings.index') }}">
+          <input type="hidden" name="action" value="change_password" />
+          <div class="riq-form-group">
+            <label class="riq-label">Current Password</label>
+            <div class="riq-input-wrapper">
+              <i class="bi bi-lock-fill riq-input-icon"></i>
+              <input type="password" name="current_password" class="riq-input" placeholder="••••••••" required />
+            </div>
+          </div>
+          <div class="riq-form-group">
+            <label class="riq-label">New Password</label>
+            <div class="riq-input-wrapper">
+              <i class="bi bi-lock-fill riq-input-icon"></i>
+              <input type="password" name="new_password" class="riq-input" placeholder="Min. 8 characters" required />
+            </div>
+          </div>
+          <div class="riq-form-group">
+            <label class="riq-label">Confirm New Password</label>
+            <div class="riq-input-wrapper">
+              <i class="bi bi-lock-fill riq-input-icon"></i>
+              <input type="password" name="confirm_password" class="riq-input" placeholder="Repeat new password" required />
+            </div>
+          </div>
+          <button type="submit" class="riq-btn-danger">
+            <i class="bi bi-shield-lock-fill me-2"></i>Update Password
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Preferences -->
+  <div class="col-12">
+    <div class="riq-card">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-sliders me-2 text-info"></i>Application Preferences</h5>
+      </div>
+      <div class="riq-card-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="pref-item">
+              <div>
+                <strong>Theme</strong>
+                <p class="text-muted mb-0 small">Toggle between dark and light mode</p>
+              </div>
+              <button class="riq-btn-ghost" id="settingsThemeBtn">
+                <i class="bi bi-moon-fill me-1"></i>Dark Mode
+              </button>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="pref-item">
+              <div>
+                <strong>Version</strong>
+                <p class="text-muted mb-0 small">ResearchIQ Platform</p>
+              </div>
+              <span class="badge riq-badge-primary">v1.0.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('settingsThemeBtn').addEventListener('click', () => {
+  document.getElementById('themeToggle')?.click();
+});
+</script>
+{% endblock %}

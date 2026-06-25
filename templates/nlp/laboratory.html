@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}NLP Laboratory - ResearchIQ{% endblock %}
+{% block breadcrumb %}NLP Laboratory{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">NLP Laboratory</h1>
+    <p class="page-subtitle">Phase 3: Preprocessing Engine & Analysis</p>
+  </div>
+  {% if document %}
+  <a href="{{ url_for('document_bp.index') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Change Document
+  </a>
+  {% endif %}
+</div>
+
+{% if not document %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-file-earmark-text display-4 text-primary"></i>
+    </div>
+    <h4 class="mb-3">Select a Document</h4>
+    <p class="text-secondary mb-4">Please select a document from your repository to run NLP analysis.</p>
+    <a href="{{ url_for('document_bp.index') }}" class="btn btn-primary px-4">
+        Go to Documents
+    </a>
+</div>
+{% elif not prep_result %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-exclamation-circle display-4 text-warning"></i>
+    </div>
+    <h4 class="mb-3">Analysis Required</h4>
+    <p class="text-secondary mb-4">This document has not been processed by the NLP Engine yet.</p>
+    <a href="{{ url_for('document_bp.preview', doc_id=document.id) }}" class="btn btn-primary px-4">
+        Go to Document Preview to Run Analysis
+    </a>
+</div>
+{% else %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="riq-card p-3 d-flex justify-content-between align-items-center bg-dark-subtle border-start border-4 border-primary">
+            <div>
+                <h5 class="mb-1 d-flex align-items-center gap-2">
+                    <i class="bi {{ document.icon }} text-primary"></i> {{ document.original_filename }}
+                </h5>
+                <small class="text-muted">Last Processed: {{ prep_result.processed_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            </div>
+            <a href="{{ url_for('document_bp.preview', doc_id=document.id) }}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye"></i> View Document
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- SECTION 5: Statistics (Top row for immediate insight) -->
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Token Count</h6>
+            <h2 class="text-primary mb-0">{{ prep_result.token_count }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Sentence Count</h6>
+            <h2 class="text-info mb-0">{{ prep_result.sentence_count }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Vocabulary Size</h6>
+            <h2 class="text-success mb-0">{{ prep_result.vocabulary_size }}</h2>
+            <small class="text-muted d-block mt-1">Unique Tokens</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Avg Sentence Len</h6>
+            <h2 class="text-warning mb-0">{{ prep_result.average_sentence_length }}</h2>
+            <small class="text-muted d-block mt-1">Tokens/Sentence</small>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-6 mb-4 mb-lg-0">
+        <!-- SECTION 1: Original Text -->
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h5 class="riq-card-title m-0"><i class="bi bi-body-text me-2"></i>SECTION 1: Original Text</h5>
+            </div>
+            <div class="riq-card-body p-0">
+                <div class="p-3 bg-dark bg-opacity-10 font-monospace text-light" style="max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;">{{ document.cleaned_text }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <!-- SECTION 2: Normalized Text -->
+        <div class="riq-card h-100">
+            <div class="riq-card-header bg-primary bg-opacity-10 border-bottom border-primary border-opacity-25">
+                <h5 class="riq-card-title m-0 text-primary"><i class="bi bi-funnel me-2"></i>SECTION 2: Normalized Text</h5>
+            </div>
+            <div class="riq-card-body p-0">
+                <div class="p-3 bg-dark bg-opacity-10 font-monospace text-light" style="max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;">{{ prep_result.normalized_text }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-6 mb-4 mb-lg-0">
+        <!-- SECTION 3: Sentence Segmentation -->
+        <div class="riq-card h-100">
+            <div class="riq-card-header bg-info bg-opacity-10 border-bottom border-info border-opacity-25 d-flex justify-content-between align-items-center">
+                <h5 class="riq-card-title m-0 text-info"><i class="bi bi-list-nested me-2"></i>SECTION 3: Sentence Segmentation</h5>
+                <span class="badge bg-info text-dark">{{ prep_result.sentence_count }} Sentences</span>
+            </div>
+            <div class="riq-card-body p-0">
+                <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                    {% set sentences = [] %}
+                    {% if prep_result.sentences_json %}
+                        {% set _ = sentences.extend(prep_result.sentences_json | fromjson) %}
+                    {% endif %}
+                    
+                    {% for sentence in sentences %}
+                    <div class="list-group-item bg-transparent border-secondary border-opacity-25 py-3">
+                        <div class="d-flex w-100 justify-content-between">
+                            <small class="text-info mb-1">Sentence {{ loop.index }}</small>
+                        </div>
+                        <p class="mb-1 text-light">{{ sentence }}</p>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">No sentences available.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <!-- SECTION 4: Tokens -->
+        <div class="riq-card h-100">
+            <div class="riq-card-header bg-success bg-opacity-10 border-bottom border-success border-opacity-25 d-flex justify-content-between align-items-center">
+                <h5 class="riq-card-title m-0 text-success"><i class="bi bi-grid-3x3-gap me-2"></i>SECTION 4: Tokens</h5>
+                <span class="badge bg-success">{{ prep_result.token_count }} Tokens</span>
+            </div>
+            <div class="riq-card-body p-4" style="max-height: 400px; overflow-y: auto;">
+                {% set tokens = [] %}
+                {% if prep_result.tokens_json %}
+                    {% set _ = tokens.extend(prep_result.tokens_json | fromjson) %}
+                {% endif %}
+                
+                <div class="d-flex flex-wrap gap-2">
+                {% for token in tokens %}
+                    <span class="badge bg-dark border border-secondary border-opacity-50 text-light fw-normal py-2 px-3" style="font-size: 0.85rem;">{{ token }}</span>
+                {% else %}
+                    <div class="w-100 text-center text-muted">No tokens available.</div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 6: Visual Analytics (Chart.js) -->
+<h4 class="mb-4 mt-5 border-bottom border-secondary border-opacity-25 pb-2">Visual Analytics</h4>
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h6 class="riq-card-title m-0">Top 20 Most Frequent Tokens</h6>
+            </div>
+            <div class="riq-card-body position-relative" style="height: 350px;">
+                <canvas id="tokensChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h6 class="riq-card-title m-0">Vocabulary Analysis</h6>
+            </div>
+            <div class="riq-card-body position-relative d-flex align-items-center justify-content-center" style="height: 350px;">
+                <canvas id="vocabChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 mb-4">
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h6 class="riq-card-title m-0">Sentence Length Distribution</h6>
+            </div>
+            <div class="riq-card-body position-relative" style="height: 350px;">
+                <canvas id="sentencesChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if document and prep_result %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Shared Chart.js defaults for dark theme
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+    
+    // Parse data from template
+    const tokens = {{ prep_result.tokens_json | safe if prep_result.tokens_json else '[]' }};
+    const sentences = {{ prep_result.sentences_json | safe if prep_result.sentences_json else '[]' }};
+    const uniqueTokenCount = {{ prep_result.unique_token_count | default(0) }};
+    const totalTokenCount = {{ prep_result.token_count | default(0) }};
+    
+    if (tokens.length === 0) return;
+
+    // 1. Calculate Top 20 Tokens Frequency
+    const tokenFreq = {};
+    tokens.forEach(t => {
+        const token = t.toLowerCase();
+        // Simple filter for punctuation if desired, but we'll show all for true NLP stats
+        tokenFreq[token] = (tokenFreq[token] || 0) + 1;
+    });
+    
+    // Sort and slice top 20
+    const sortedTokens = Object.entries(tokenFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20);
+        
+    const topTokenLabels = sortedTokens.map(item => item[0]);
+    const topTokenData = sortedTokens.map(item => item[1]);
+
+    // 2. Calculate Sentence Lengths
+    const sentenceLengths = sentences.map(s => {
+        // Rough estimate of words per sentence for the histogram
+        return s.split(/\s+/).filter(w => w.length > 0).length;
+    });
+    
+    // Create bins (0-5, 6-10, 11-15, etc.)
+    const bins = {
+        '1-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21-30': 0, '31+': 0
+    };
+    
+    sentenceLengths.forEach(len => {
+        if (len <= 5) bins['1-5']++;
+        else if (len <= 10) bins['6-10']++;
+        else if (len <= 15) bins['11-15']++;
+        else if (len <= 20) bins['16-20']++;
+        else if (len <= 30) bins['21-30']++;
+        else bins['31+']++;
+    });
+
+    // Render Tokens Bar Chart
+    const ctxTokens = document.getElementById('tokensChart').getContext('2d');
+    new Chart(ctxTokens, {
+        type: 'bar',
+        data: {
+            labels: topTokenLabels,
+            datasets: [{
+                label: 'Frequency',
+                data: topTokenData,
+                backgroundColor: 'rgba(79, 142, 247, 0.7)',
+                borderColor: 'rgba(79, 142, 247, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+    
+    // Render Sentence Length Histogram
+    const ctxSentences = document.getElementById('sentencesChart').getContext('2d');
+    new Chart(ctxSentences, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(bins),
+            datasets: [{
+                label: 'Number of Sentences',
+                data: Object.values(bins),
+                backgroundColor: 'rgba(20, 184, 166, 0.7)',
+                borderColor: 'rgba(20, 184, 166, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true },
+                x: { title: { display: true, text: 'Words per Sentence' } }
+            }
+        }
+    });
+    
+    // Render Vocabulary Doughnut Chart
+    const ctxVocab = document.getElementById('vocabChart').getContext('2d');
+    const repeatedTokens = totalTokenCount - uniqueTokenCount;
+    new Chart(ctxVocab, {
+        type: 'doughnut',
+        data: {
+            labels: ['Unique Tokens', 'Repeated Tokens'],
+            datasets: [{
+                data: [uniqueTokenCount, repeatedTokens],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(255, 255, 255, 0.1)'
+                ],
+                borderColor: ['rgba(34, 197, 94, 1)', 'rgba(255, 255, 255, 0.2)'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '75%',
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block breadcrumb %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle">{{ description }}</p>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="riq-card text-center py-5">
+      <div class="coming-soon-icon" style="font-size:4rem; margin-bottom:1.5rem;">
+        <i class="bi {{ icon }}" style="
+          background: linear-gradient(135deg,#4f8ef7,#8b5cf6);
+          -webkit-background-clip:text;
+          -webkit-text-fill-color:transparent;
+          background-clip:text;
+        "></i>
+      </div>
+      <h2 class="fw-bold mb-2">{{ title }}</h2>
+      <p class="text-muted mb-4 px-4">{{ description }}</p>
+
+      <div class="coming-soon-badge mb-4">
+        <i class="bi bi-hourglass-split me-2"></i>{{ status }}
+      </div>
+
+      <!-- Progress placeholder -->
+      <div class="px-4 mb-4">
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-muted">Development Progress</small>
+          <small class="text-muted">0%</small>
+        </div>
+        <div class="progress riq-progress">
+          <div class="progress-bar" style="width:0%; background:linear-gradient(90deg,#4f8ef7,#8b5cf6);"></div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-3 justify-content-center">
+        <a href="{{ url_for('dashboard.index') }}" class="riq-btn-ghost">
+          <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+        </a>
+        <a href="{{ url_for('nlp.laboratory') }}" class="riq-btn-primary">
+          <i class="bi bi-flask me-2"></i>NLP Laboratory
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

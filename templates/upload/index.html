@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Upload Documents{% endblock %}
+{% block breadcrumb %}Upload Documents{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Upload Documents</h1>
+    <p class="page-subtitle">Upload PDF, DOCX, or TXT files for NLP analysis.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Drop Zone -->
+  <div class="col-12 col-lg-5">
+    <div class="riq-card">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-cloud-arrow-up-fill me-2 text-primary"></i>Upload Files</h5>
+      </div>
+      <div class="riq-card-body">
+        <form method="POST" action="{{ url_for('upload.index') }}" enctype="multipart/form-data" id="uploadForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-content">
+              <div class="drop-zone-icon"><i class="bi bi-cloud-upload"></i></div>
+              <h4 class="drop-zone-title">Drag &amp; Drop files here</h4>
+              <p class="drop-zone-sub">or click to browse</p>
+              <div class="drop-zone-types">
+                <span class="file-badge file-badge--pdf"><i class="bi bi-file-earmark-pdf-fill"></i> PDF</span>
+                <span class="file-badge file-badge--docx"><i class="bi bi-file-earmark-word-fill"></i> DOCX</span>
+                <span class="file-badge file-badge--txt"><i class="bi bi-file-earmark-text-fill"></i> TXT</span>
+              </div>
+            </div>
+            <input type="file" name="documents" id="fileInput" multiple
+                   accept=".pdf,.docx,.txt" class="drop-zone-input" />
+          </div>
+
+          <!-- Selected Files Preview -->
+          <div id="filePreview" class="file-preview-list mt-3" style="display:none;"></div>
+
+          <div class="mt-3 d-flex gap-2">
+            <button type="submit" class="riq-btn-primary flex-grow-1" id="uploadBtn" disabled>
+              <i class="bi bi-upload me-2"></i>Upload Selected
+            </button>
+            <button type="button" class="riq-btn-ghost" onclick="clearFiles()">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+
+          <!-- Progress bar (shown during upload) -->
+          <div class="upload-progress mt-3" id="uploadProgress" style="display:none;">
+            <div class="progress riq-progress">
+              <div class="progress-bar progress-bar-striped progress-bar-animated"
+                   role="progressbar" style="width:100%"></div>
+            </div>
+            <small class="text-muted mt-1 d-block text-center">Uploading…</small>
+          </div>
+        </form>
+
+        <div class="upload-limits mt-3">
+          <p class="upload-limit-item"><i class="bi bi-info-circle me-1 text-info"></i>Maximum file size: <strong>16 MB</strong></p>
+          <p class="upload-limit-item"><i class="bi bi-check-circle me-1 text-success"></i>Accepted: PDF, DOCX, TXT</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document List -->
+  <div class="col-12 col-lg-7">
+    <div class="riq-card">
+      <div class="riq-card-header">
+        <h5 class="riq-card-title"><i class="bi bi-folder2-open me-2 text-warning"></i>Your Documents
+          <span class="badge riq-badge-primary ms-2">{{ documents|length }}</span>
+        </h5>
+      </div>
+      <div class="riq-card-body p-0">
+        {% if documents %}
+        <div class="table-responsive">
+          <table class="riq-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Uploaded</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for doc in documents %}
+              <tr class="riq-table-row">
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="file-type-icon {{ 'icon-pdf' if doc.file_type == 'pdf' else ('icon-docx' if doc.file_type == 'docx' else 'icon-txt') }}">
+                      <i class="bi {{ doc.icon }}"></i>
+                    </span>
+                    <span class="doc-filename" title="{{ doc.original_filename }}">
+                      {{ doc.original_filename | truncate(28) }}
+                    </span>
+                  </div>
+                </td>
+                <td><span class="file-badge file-badge--{{ doc.file_type }}">{{ doc.file_type | upper }}</span></td>
+                <td class="text-muted">{{ doc.file_size_display }}</td>
+                <td class="text-muted">{{ doc.upload_date.strftime('%d %b %Y') }}</td>
+                <td><span class="status-badge status-{{ doc.status }}">{{ doc.status }}</span></td>
+                <td>
+                  <div class="d-flex gap-1">
+                    <a href="{{ url_for('document_bp.preview', doc_id=doc.id) }}" class="btn-icon-view" title="Preview">
+                      <i class="bi bi-eye-fill"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('upload.delete', doc_id=doc.id) }}"
+                          onsubmit="return confirm('Delete {{ doc.original_filename }}?')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                      <button type="submit" class="btn-icon-danger" title="Delete">
+                        <i class="bi bi-trash3-fill"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="empty-state py-5">
+            <i class="bi bi-folder-plus empty-state-icon"></i>
+            <p class="empty-state-text">No documents uploaded yet.<br>Upload your first research file to get started.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
+const uploadBtn  = document.getElementById('uploadBtn');
+const filePreview = document.getElementById('filePreview');
+const uploadForm = document.getElementById('uploadForm');
+const uploadProgress = document.getElementById('uploadProgress');
+let selectedFiles = [];
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drop-zone--active'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drop-zone--active'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drop-zone--active');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function handleFiles(files) {
+  selectedFiles = Array.from(files);
+  renderPreview();
+  uploadBtn.disabled = selectedFiles.length === 0;
+}
+
+function renderPreview() {
+  if (!selectedFiles.length) { filePreview.style.display = 'none'; return; }
+  filePreview.style.display = 'block';
+  filePreview.innerHTML = selectedFiles.map((f, i) => `
+    <div class="file-preview-item">
+      <i class="bi bi-file-earmark-fill me-2 text-primary"></i>
+      <span class="file-preview-name">${f.name}</span>
+      <span class="file-preview-size text-muted">(${(f.size/1024).toFixed(1)} KB)</span>
+    </div>`).join('');
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  fileInput.value = '';
+  filePreview.style.display = 'none';
+  uploadBtn.disabled = true;
+  dropZone.classList.remove('drop-zone--active');
+}
+
+uploadForm.addEventListener('submit', () => {
+  uploadProgress.style.display = 'block';
+  uploadBtn.disabled = true;
+});
+</script>
+{% endblock %}

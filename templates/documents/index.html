@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - ResearchIQ{% endblock %}
+
+{% block page_title %}Document Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="riq-card p-4">
+            <form method="GET" action="{{ url_for('document_bp.index') }}" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label text-muted small">Search Documents</label>
+                    <div class="input-group riq-input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" name="q" placeholder="Filename..." value="{{ search_query or '' }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted small">File Type</label>
+                    <select class="form-select riq-input" name="type">
+                        <option value="">All Types</option>
+                        <option value="pdf" {% if current_filter == 'pdf' %}selected{% endif %}>PDF</option>
+                        <option value="docx" {% if current_filter == 'docx' %}selected{% endif %}>DOCX</option>
+                        <option value="txt" {% if current_filter == 'txt' %}selected{% endif %}>TXT</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label text-muted small">Sort By</label>
+                    <select class="form-select riq-input" name="sort">
+                        <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest First</option>
+                        <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>Oldest First</option>
+                        <option value="largest" {% if current_sort == 'largest' %}selected{% endif %}>Largest Size</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-filter"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="riq-card p-4">
+            <h5 class="mb-4"><i class="bi bi-files text-primary me-2"></i> Your Documents</h5>
+            
+            {% if documents %}
+            <div class="table-responsive">
+                <table class="table riq-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Document</th>
+                            <th>Type</th>
+                            <th>Stats</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in documents %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="file-icon-box bg-dark-subtle rounded p-2 me-3">
+                                        <i class="bi {{ doc.icon }} fs-4 text-primary"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0 text-truncate" style="max-width: 300px;" title="{{ doc.original_filename }}">
+                                            {{ doc.original_filename }}
+                                        </h6>
+                                        <small class="text-muted">{{ doc.file_size_display }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-secondary text-uppercase">{{ doc.file_type }}</span></td>
+                            <td>
+                                <div class="small">
+                                    <span class="d-block"><i class="bi bi-fonts"></i> {{ doc.word_count }} words</span>
+                                    <span class="d-block text-muted"><i class="bi bi-text-paragraph"></i> {{ doc.sentence_count }} sentences</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% if doc.processing_status == 'success' %}
+                                    <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle"></i> Extracted</span>
+                                {% elif doc.processing_status == 'failed' %}
+                                    <span class="badge bg-danger-subtle text-danger"><i class="bi bi-exclamation-triangle"></i> Error</span>
+                                {% else %}
+                                    <span class="badge bg-warning-subtle text-warning"><i class="bi bi-hourglass-split"></i> Processing</span>
+                                {% endif %}
+                            </td>
+                            <td><small class="text-muted">{{ doc.upload_date.strftime('%b %d, %Y') }}</small></td>
+                            <td class="text-end">
+                                <a href="{{ url_for('document_bp.preview', doc_id=doc.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                <form action="{{ url_for('upload.delete', doc_id=doc.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this document?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-file-earmark-x display-1 text-muted mb-3 d-block opacity-50"></i>
+                <h4 class="text-muted">No documents found</h4>
+                <p class="text-secondary mb-4">Upload some files to get started with analysis.</p>
+                <a href="{{ url_for('upload.index') }}" class="btn btn-primary px-4">
+                    <i class="bi bi-cloud-arrow-up me-2"></i>Upload File
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
