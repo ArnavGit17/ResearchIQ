@@ -6,5 +6,6 @@ from .question import Question
 from .summary import Summary
 from .preprocessing import PreprocessingResult
 from .morphology import MorphologyResult
+from .statistical_nlp import StatisticalAnalysisResult
 
-__all__ = ["User", "Document", "Analysis", "Question", "Summary", "PreprocessingResult", "MorphologyResult"]
+__all__ = ["User", "Document", "Analysis", "Question", "Summary", "PreprocessingResult", "MorphologyResult", "StatisticalAnalysisResult"]

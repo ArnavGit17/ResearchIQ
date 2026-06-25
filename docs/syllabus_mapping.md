@@ -26,10 +26,13 @@ This document tracks the mapping between the ResearchIQ platform modules and the
 - [x] Stopword Removal (Configurable)
 
 ### Phase 5: Statistical NLP
-- [ ] N-Grams Generation
-- [ ] Term Frequency (TF)
-- [ ] TF-IDF Analysis
-- [ ] Collocation Detection
+- [x] Unigram Models
+- [x] Bigram Models
+- [x] Trigram Models
+- [x] Language Modeling (Unigram / Bigram / Trigram with Laplace smoothing)
+- [x] Term Frequency (TF)
+- [x] TF-IDF Analysis
+- [x] Perplexity Demonstration
 
 ### Phase 6: Syntax Analysis
 - [ ] Dependency Parsing

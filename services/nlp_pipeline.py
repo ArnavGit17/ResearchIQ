@@ -5,14 +5,17 @@ Orchestrates the execution of preprocessing and future NLP modules for a documen
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from app_extensions import db
 from models.document import Document
 from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
+from models.statistical_nlp import StatisticalAnalysisResult
 from services.preprocessing_service import PreprocessingService
 from services.morphology_service import MorphologyService
+from services.statistical_nlp_service import StatisticalNLPService
 
 logger = logging.getLogger(__name__)
 
@@ -115,9 +118,64 @@ class NLPPipeline:
             
     @staticmethod
     def run_statistical_analysis(document_id: int) -> bool:
-        """Placeholder for Phase 5: Statistical NLP"""
-        logger.info(f"Statistical analysis skipped - Phase 5 Placeholder")
-        return True
+        """
+        Runs Phase 5 Statistical NLP for a document.
+        Requires MorphologyResult to exist.
+        """
+        logger.info(f"Starting Statistical NLP for Document {document_id}")
+
+        morph_result = MorphologyResult.query.filter_by(document_id=document_id).first()
+        if not morph_result or not morph_result.lemmatized_tokens_json:
+            logger.error(
+                f"Cannot run statistical NLP: Morphology results not found for Document {document_id}"
+            )
+            return False
+
+        prep_result = PreprocessingResult.query.filter_by(document_id=document_id).first()
+
+        try:
+            lemmatised_tokens = json.loads(morph_result.lemmatized_tokens_json)
+            sentences = (
+                json.loads(prep_result.sentences_json)
+                if prep_result and prep_result.sentences_json
+                else []
+            )
+
+            results = StatisticalNLPService.run_analysis(lemmatised_tokens, sentences)
+
+            # Upsert
+            stat_result = StatisticalAnalysisResult.query.filter_by(
+                document_id=document_id
+            ).first()
+            if not stat_result:
+                stat_result = StatisticalAnalysisResult(document_id=document_id)
+                db.session.add(stat_result)
+
+            stat_result.unigram_json            = json.dumps(results["unigrams"])
+            stat_result.bigram_json             = json.dumps(results["bigrams"])
+            stat_result.trigram_json            = json.dumps(results["trigrams"])
+            stat_result.tf_json                 = json.dumps(results["tf"])
+            stat_result.tfidf_json              = json.dumps(results["tfidf"])
+            stat_result.vocabulary_size         = results["vocabulary_size"]
+            stat_result.total_tokens            = results["total_tokens"]
+            stat_result.unique_bigrams          = results["unique_bigrams"]
+            stat_result.unique_trigrams         = results["unique_trigrams"]
+            stat_result.type_token_ratio        = results["type_token_ratio"]
+            stat_result.language_model_json     = json.dumps(results["language_model"])
+            stat_result.perplexity_score        = results["perplexity_score"]
+            stat_result.perplexity_detail_json  = json.dumps(results["perplexity_detail"])
+            stat_result.processed_at            = datetime.now(timezone.utc)
+
+            db.session.commit()
+            logger.info(f"Successfully ran statistical NLP for Document {document_id}")
+            return True
+
+        except Exception as e:
+            db.session.rollback()
+            logger.exception(
+                f"Failed to run statistical NLP for Document {document_id}: {str(e)}"
+            )
+            return False
         
     @staticmethod
     def run_syntax_analysis(document_id: int) -> bool:
@@ -151,7 +209,8 @@ class NLPPipeline:
             return False
             
         # Step 3: Statistical NLP (Phase 5)
-        NLPPipeline.run_statistical_analysis(document_id)
+        if not NLPPipeline.run_statistical_analysis(document_id):
+            logger.warning(f"Statistical NLP failed for Document {document_id} – continuing pipeline")
         
         # Step 4: Syntax (Phase 6)
         NLPPipeline.run_syntax_analysis(document_id)

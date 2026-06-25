@@ -11,6 +11,7 @@ from app_extensions import db
 from models.document import Document
 from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
+from models.statistical_nlp import StatisticalAnalysisResult
 
 nlp_bp = Blueprint("nlp", __name__, url_prefix="/nlp")
 
@@ -58,6 +59,32 @@ def morphology():
                            document=document, 
                            morph_result=morph_result,
                            prep_result=prep_result)
+
+
+@nlp_bp.route("/statistical-nlp")
+@login_required
+def statistical_nlp():
+    doc_id = request.args.get('doc', type=int)
+    document = None
+    stat_result = None
+    morph_result = None
+
+    if doc_id:
+        document = db.session.get(Document, doc_id)
+        if not document or document.user_id != current_user.id:
+            flash("Document not found or access denied.", "danger")
+            return redirect(url_for('document_bp.index'))
+
+        stat_result  = StatisticalAnalysisResult.query.filter_by(document_id=document.id).first()
+        morph_result = MorphologyResult.query.filter_by(document_id=document.id).first()
+
+    return render_template(
+        "nlp/statistical.html",
+        page="statistical",
+        document=document,
+        stat_result=stat_result,
+        morph_result=morph_result,
+    )
 
 
 @nlp_bp.route("/syntax")

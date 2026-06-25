@@ -20,6 +20,10 @@
                     <i class="bi bi-diagram-2" id="btn-morphology-icon"></i> 
                     <span id="btn-morphology-text">Run Morphological Analysis</span>
                 </button>
+                <button id="btn-statistical" class="btn btn-warning text-dark" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-graph-up" id="btn-statistical-icon"></i>
+                    <span id="btn-statistical-text">Run Statistical NLP</span>
+                </button>
             </div>
         </div>
     </div>
@@ -223,6 +227,48 @@ document.addEventListener('DOMContentLoaded', function() {
                 btnMorphology.disabled = false;
                 icon.className = 'bi bi-diagram-2';
                 text.innerText = ' Run Morphological Analysis';
+            }
+        });
+    }
+
+    // ── Statistical NLP button ───────────────────────────────────────────────
+    const btnStat = document.getElementById('btn-statistical');
+    if (btnStat) {
+        btnStat.addEventListener('click', async function() {
+            const docId = this.getAttribute('data-doc-id');
+            const icon  = document.getElementById('btn-statistical-icon');
+            const text  = document.getElementById('btn-statistical-text');
+            const csrf  = '{{ csrf_token() }}';
+
+            btnStat.disabled = true;
+
+            const steps = [
+                { url: `/api/preprocess/${docId}`,  label: 'Preprocessing…' },
+                { url: `/api/morphology/${docId}`,   label: 'Morphology…'    },
+                { url: `/api/statistical/${docId}`,  label: 'Statistical NLP…' },
+            ];
+
+            try {
+                for (const step of steps) {
+                    icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
+                    text.innerText = step.label;
+                    const res = await fetch(step.url, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
+                    });
+                    if (!res.ok) {
+                        const d = await res.json();
+                        throw new Error(d.error || `Step failed: ${step.label}`);
+                    }
+                }
+                // All steps succeeded – go to Statistical NLP dashboard
+                window.location.href = `{{ url_for('nlp.statistical_nlp') }}?doc=${docId}`;
+            } catch (err) {
+                console.error(err);
+                alert(err.message || 'Statistical NLP failed. See console for details.');
+                btnStat.disabled = false;
+                icon.className = 'bi bi-graph-up';
+                text.innerText = 'Run Statistical NLP';
             }
         });
     }

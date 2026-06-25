@@ -11,6 +11,7 @@ from app_extensions import db
 from models.document import Document
 from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
+from models.statistical_nlp import StatisticalAnalysisResult
 from services.nlp_pipeline import NLPPipeline
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -126,4 +127,57 @@ def get_morphology_results(document_id: int):
         "lemmas": lemmas,
         "morphology_pairs": pairs,
         "processed_at": morph_result.processed_at.isoformat() if morph_result.processed_at else None
+    })
+
+
+@api_bp.route("/statistical/<int:document_id>", methods=["POST"])
+@login_required
+def run_statistical(document_id: int):
+    """Run Statistical NLP analysis (Phase 5) on a document."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    success = NLPPipeline.run_statistical_analysis(document_id)
+
+    if success:
+        return jsonify({"status": "success", "message": "Statistical analysis completed"}), 200
+    else:
+        return jsonify({"error": "Failed. Ensure morphological analysis is complete first."}), 500
+
+
+@api_bp.route("/statistical/<int:document_id>", methods=["GET"])
+@login_required
+def get_statistical(document_id: int):
+    """Return Statistical NLP results as JSON."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    stat = StatisticalAnalysisResult.query.filter_by(document_id=document_id).first()
+    if not stat:
+        return jsonify({"error": "Statistical analysis has not been run yet"}), 404
+
+    def _safe_load(field):
+        try:
+            return json.loads(field) if field else []
+        except Exception:
+            return []
+
+    return jsonify({
+        "document_id":        stat.document_id,
+        "vocabulary_size":    stat.vocabulary_size,
+        "total_tokens":       stat.total_tokens,
+        "unique_bigrams":     stat.unique_bigrams,
+        "unique_trigrams":    stat.unique_trigrams,
+        "type_token_ratio":   stat.type_token_ratio,
+        "perplexity_score":   stat.perplexity_score,
+        "unigrams":           _safe_load(stat.unigram_json),
+        "bigrams":            _safe_load(stat.bigram_json),
+        "trigrams":           _safe_load(stat.trigram_json),
+        "tf":                 _safe_load(stat.tf_json),
+        "tfidf":              _safe_load(stat.tfidf_json),
+        "language_model":     _safe_load(stat.language_model_json),
+        "perplexity_detail":  _safe_load(stat.perplexity_detail_json),
+        "processed_at":       stat.processed_at.isoformat() if stat.processed_at else None,
     })
