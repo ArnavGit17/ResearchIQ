@@ -10,6 +10,7 @@ from flask_login import login_required, current_user
 from app_extensions import db
 from models.document import Document
 from models.preprocessing import PreprocessingResult
+from models.morphology import MorphologyResult
 from services.nlp_pipeline import NLPPipeline
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -71,4 +72,58 @@ def get_preprocess_results(document_id: int):
         "tokens": tokens,
         "sentences": sentences,
         "processed_at": prep_result.processed_at.isoformat() if prep_result.processed_at else None
+    })
+
+@api_bp.route("/morphology/<int:document_id>", methods=["POST"])
+@login_required
+def run_morphology(document_id: int):
+    """Run NLP morphology on a document."""
+    # Ensure document exists and belongs to user
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+        
+    success = NLPPipeline.run_morphology(document_id)
+    
+    if success:
+        return jsonify({"status": "success", "message": "Morphology processed successfully"}), 200
+    else:
+        return jsonify({"error": "Failed to process morphology. Please ensure preprocessing is complete."}), 500
+
+
+@api_bp.route("/morphology/<int:document_id>", methods=["GET"])
+@login_required
+def get_morphology_results(document_id: int):
+    """Get morphology results for a document."""
+    # Ensure document exists and belongs to user
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+        
+    morph_result = MorphologyResult.query.filter_by(document_id=document_id).first()
+    
+    if not morph_result:
+        return jsonify({"error": "Morphology has not been processed yet"}), 404
+        
+    try:
+        stems = json.loads(morph_result.stemmed_tokens_json) if morph_result.stemmed_tokens_json else []
+        lemmas = json.loads(morph_result.lemmatized_tokens_json) if morph_result.lemmatized_tokens_json else []
+        pairs = json.loads(morph_result.morphology_pairs_json) if morph_result.morphology_pairs_json else []
+    except Exception:
+        stems, lemmas, pairs = [], [], []
+        
+    return jsonify({
+        "document_id": morph_result.document_id,
+        "unique_stems": morph_result.unique_stems,
+        "unique_lemmas": morph_result.unique_lemmas,
+        "stem_count": morph_result.stem_count,
+        "lemma_count": morph_result.lemma_count,
+        "original_vocabulary_size": morph_result.original_vocabulary_size,
+        "stemmed_vocabulary_size": morph_result.stemmed_vocabulary_size,
+        "lemmatized_vocabulary_size": morph_result.lemmatized_vocabulary_size,
+        "vocabulary_reduction_percentage": morph_result.vocabulary_reduction_percentage,
+        "stems": stems,
+        "lemmas": lemmas,
+        "morphology_pairs": pairs,
+        "processed_at": morph_result.processed_at.isoformat() if morph_result.processed_at else None
     })

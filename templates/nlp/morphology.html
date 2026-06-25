@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+{% block title %}Morphological Analysis - ResearchIQ{% endblock %}
+{% block breadcrumb %}Morphological Analysis{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Morphological Analysis</h1>
+    <p class="page-subtitle">Phase 4: Stemming, Lemmatization, and Vocabulary Reduction</p>
+  </div>
+  {% if document %}
+  <a href="{{ url_for('document_bp.index') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Change Document
+  </a>
+  {% endif %}
+</div>
+
+{% if not document %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-file-earmark-text display-4 text-primary"></i>
+    </div>
+    <h4 class="mb-3">Select a Document</h4>
+    <p class="text-secondary mb-4">Please select a document from your repository to run Morphological analysis.</p>
+    <a href="{{ url_for('document_bp.index') }}" class="btn btn-primary px-4">
+        Go to Documents
+    </a>
+</div>
+{% elif not prep_result %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-exclamation-circle display-4 text-warning"></i>
+    </div>
+    <h4 class="mb-3">Preprocessing Required</h4>
+    <p class="text-secondary mb-4">This document must undergo NLP Preprocessing before morphology can be analyzed.</p>
+    <a href="{{ url_for('documents.preview', doc_id=document.id) }}" class="btn btn-primary px-4">
+        Go to Document
+    </a>
+</div>
+{% elif not morph_result %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-diagram-2 display-4 text-info"></i>
+    </div>
+    <h4 class="mb-3">Morphological Analysis Required</h4>
+    <p class="text-secondary mb-4">The text has been preprocessed but morphological analysis is pending.</p>
+    <button id="btn-analyze-page" class="btn btn-info text-white px-4" data-doc-id="{{ document.id }}">
+        <i class="bi bi-play-fill me-1" id="btn-analyze-icon"></i> <span id="btn-analyze-text">Run Morphological Analysis</span>
+    </button>
+</div>
+{% else %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="riq-card p-3 d-flex justify-content-between align-items-center bg-dark-subtle border-start border-4 border-info">
+            <div>
+                <h5 class="mb-1 d-flex align-items-center gap-2">
+                    <i class="bi {{ document.icon }} text-info"></i> {{ document.original_filename }}
+                </h5>
+                <small class="text-muted">Analyzed: {{ morph_result.processed_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            </div>
+            <button id="btn-reanalyze" class="btn btn-sm btn-outline-info" data-doc-id="{{ document.id }}">
+                <i class="bi bi-arrow-repeat" id="btn-reanalyze-icon"></i> <span id="btn-reanalyze-text">Reprocess</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 1: Vocabulary Reduction Stats -->
+<h5 class="mb-3 border-bottom border-secondary border-opacity-25 pb-2">Vocabulary Reduction Metrics</h5>
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100 border-primary border-opacity-25">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Original Vocab</h6>
+            <h2 class="text-light mb-0">{{ morph_result.original_vocabulary_size }}</h2>
+            <small class="text-muted d-block mt-1">Unique Raw Tokens</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100 border-warning border-opacity-25">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Stemmed Vocab</h6>
+            <h2 class="text-warning mb-0">{{ morph_result.stemmed_vocabulary_size }}</h2>
+            <small class="text-muted d-block mt-1">Unique Stems</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100 border-success border-opacity-25">
+            <h6 class="text-muted text-uppercase small fw-bold mb-3">Lemmatized Vocab</h6>
+            <h2 class="text-success mb-0">{{ morph_result.lemmatized_vocabulary_size }}</h2>
+            <small class="text-muted d-block mt-1">Unique POS-aware Lemmas</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="riq-card text-center p-4 h-100 bg-info bg-opacity-10 border-info">
+            <h6 class="text-info text-uppercase small fw-bold mb-3">Vocabulary Reduction</h6>
+            <h2 class="text-info mb-0">{{ morph_result.vocabulary_reduction_percentage }}%</h2>
+            <small class="text-info text-opacity-75 d-block mt-1">Compression Rate</small>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 2: Morphology Explainability & Comparison Matrix -->
+<div class="row mb-4">
+    <div class="col-lg-7 mb-4 mb-lg-0">
+        <div class="riq-card h-100">
+            <div class="riq-card-header d-flex justify-content-between align-items-center">
+                <h5 class="riq-card-title m-0"><i class="bi bi-table me-2"></i>Morphology Comparison Matrix</h5>
+                <span class="badge bg-secondary">Sample of {{ morph_result.lemma_count }} tokens</span>
+            </div>
+            <div class="riq-card-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-dark table-hover table-sm m-0">
+                        <thead class="position-sticky top-0 bg-dark z-1">
+                            <tr>
+                                <th class="ps-3 py-3 text-muted">Original Token</th>
+                                <th class="py-3 text-warning">Stem (Porter)</th>
+                                <th class="py-3 text-success">Lemma (POS-Aware)</th>
+                                <th class="py-3 text-muted">POS Tag</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set pairs = [] %}
+                            {% if morph_result.morphology_pairs_json %}
+                                {% set _ = pairs.extend(morph_result.morphology_pairs_json | fromjson) %}
+                            {% endif %}
+                            
+                            {% for pair in pairs %}
+                            <tr class="explain-row" style="cursor: pointer;" data-token="{{ pair.token }}" data-stem="{{ pair.stem }}" data-lemma="{{ pair.lemma }}" data-stem-exp="{{ pair.stem_explanation }}" data-lemma-exp="{{ pair.lemma_explanation }}">
+                                <td class="ps-3 text-light">{{ pair.token }}</td>
+                                <td class="text-warning font-monospace">{{ pair.stem }}</td>
+                                <td class="text-success fw-bold">{{ pair.lemma }}</td>
+                                <td><span class="badge bg-secondary bg-opacity-25 text-light">{{ pair.pos_tag }}</span></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">No morphology data available.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="riq-card h-100 bg-dark-subtle border-start border-4 border-info">
+            <div class="riq-card-header">
+                <h5 class="riq-card-title m-0 text-info"><i class="bi bi-lightbulb me-2"></i>Explainable NLP</h5>
+            </div>
+            <div class="riq-card-body">
+                <p class="text-muted mb-4 small">Click a row in the matrix to see the linguistic explanation for the transformation.</p>
+                
+                <div id="explain-panel" class="d-none">
+                    <h4 id="exp-token" class="text-light mb-4 border-bottom border-secondary border-opacity-25 pb-2"></h4>
+                    
+                    <div class="mb-4 p-3 bg-warning bg-opacity-10 rounded border border-warning border-opacity-25">
+                        <h6 class="text-warning mb-2"><i class="bi bi-scissors me-2"></i>Stemming Process</h6>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-dark text-light border border-secondary border-opacity-50 fs-6">Result: <span id="exp-stem" class="text-warning font-monospace ms-1"></span></span>
+                        </div>
+                        <p id="exp-stem-desc" class="text-light small mb-0"></p>
+                    </div>
+                    
+                    <div class="p-3 bg-success bg-opacity-10 rounded border border-success border-opacity-25">
+                        <h6 class="text-success mb-2"><i class="bi bi-book me-2"></i>Lemmatization Process</h6>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-dark text-light border border-secondary border-opacity-50 fs-6">Result: <span id="exp-lemma" class="text-success fw-bold ms-1"></span></span>
+                        </div>
+                        <p id="exp-lemma-desc" class="text-light small mb-0"></p>
+                    </div>
+                </div>
+                
+                <div id="explain-placeholder" class="text-center p-5 text-muted h-100 d-flex flex-column justify-content-center">
+                    <i class="bi bi-hand-index-thumb display-4 mb-3 opacity-50"></i>
+                    <p>Select a token from the table to explain its morphology.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 3: Visual Analytics -->
+<h5 class="mb-3 mt-5 border-bottom border-secondary border-opacity-25 pb-2">Vocabulary Compression Charts</h5>
+<div class="row mb-5">
+    <div class="col-lg-4 mb-4">
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h6 class="riq-card-title m-0">Vocabulary Reduction</h6>
+            </div>
+            <div class="riq-card-body position-relative d-flex align-items-center justify-content-center" style="height: 300px;">
+                <canvas id="vocabChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h6 class="riq-card-title m-0">Top 15 Most Common Stems</h6>
+            </div>
+            <div class="riq-card-body position-relative" style="height: 300px;">
+                <canvas id="stemsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 mb-4">
+        <div class="riq-card h-100">
+            <div class="riq-card-header">
+                <h6 class="riq-card-title m-0">Top 15 Most Common Lemmas</h6>
+            </div>
+            <div class="riq-card-body position-relative" style="height: 300px;">
+                <canvas id="lemmasChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 4: Static Demonstrations -->
+<h5 class="mb-3 mt-5 border-bottom border-secondary border-opacity-25 pb-2">Academic Demonstrations</h5>
+<div class="row mb-5">
+    <div class="col-md-6">
+        <div class="riq-card h-100">
+            <div class="riq-card-header bg-dark-subtle border-bottom border-secondary border-opacity-25">
+                <h6 class="riq-card-title m-0"><i class="bi bi-diagram-3 me-2"></i>Inflectional Morphology</h6>
+            </div>
+            <div class="riq-card-body">
+                <p class="small text-muted mb-3">Inflection changes a word's grammatical properties (tense, number, person) without changing its core meaning or part of speech.</p>
+                <ul class="list-group list-group-flush border-top border-secondary border-opacity-25">
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-secondary text-light">Root: <strong>play</strong></span>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <span class="text-light">plays</span>
+                            </div>
+                            <small class="text-info">Third-person singular present (-s)</small>
+                        </div>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-secondary text-light">Root: <strong>play</strong></span>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <span class="text-light">played</span>
+                            </div>
+                            <small class="text-info">Past tense / Past participle (-ed)</small>
+                        </div>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3 border-bottom-0">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-secondary text-light">Root: <strong>study</strong></span>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <span class="text-light">studies</span>
+                            </div>
+                            <small class="text-info">Plural / Third-person (y → ies)</small>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="riq-card h-100">
+            <div class="riq-card-header bg-dark-subtle border-bottom border-secondary border-opacity-25">
+                <h6 class="riq-card-title m-0"><i class="bi bi-diagram-3-fill me-2"></i>Derivational Morphology</h6>
+            </div>
+            <div class="riq-card-body">
+                <p class="small text-muted mb-3">Derivation creates a new word, often changing its part of speech or core meaning entirely.</p>
+                <ul class="list-group list-group-flush border-top border-secondary border-opacity-25">
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-secondary text-light">Base: <strong>teach</strong> (Verb)</span>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <span class="text-light fw-bold">teacher</span> (Noun)
+                            </div>
+                            <small class="text-success">Agentive noun derivation (-er)</small>
+                        </div>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-secondary text-light">Base: <strong>happy</strong> (Adj)</span>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <span class="text-light fw-bold">happiness</span> (Noun)
+                            </div>
+                            <small class="text-success">State noun derivation (y → i + ness)</small>
+                        </div>
+                    </li>
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3 border-bottom-0">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-secondary text-light">Base: <strong>act</strong> (Verb)</span>
+                                <i class="bi bi-arrow-right text-muted"></i>
+                                <span class="text-light fw-bold">action</span> (Noun)
+                            </div>
+                            <small class="text-success">Action noun derivation (-ion)</small>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if document and morph_result %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Shared Chart.js defaults
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+    
+    // UI Interaction - Explainability Panel
+    const explainRows = document.querySelectorAll('.explain-row');
+    const explainPlaceholder = document.getElementById('explain-placeholder');
+    const explainPanel = document.getElementById('explain-panel');
+    
+    const expToken = document.getElementById('exp-token');
+    const expStem = document.getElementById('exp-stem');
+    const expStemDesc = document.getElementById('exp-stem-desc');
+    const expLemma = document.getElementById('exp-lemma');
+    const expLemmaDesc = document.getElementById('exp-lemma-desc');
+    
+    explainRows.forEach(row => {
+        row.addEventListener('click', function() {
+            // Remove active class from all
+            explainRows.forEach(r => r.classList.remove('bg-info', 'bg-opacity-10'));
+            // Add to clicked
+            this.classList.add('bg-info', 'bg-opacity-10');
+            
+            // Populate explain panel
+            expToken.textContent = this.getAttribute('data-token');
+            expStem.textContent = this.getAttribute('data-stem');
+            expStemDesc.textContent = this.getAttribute('data-stem-exp');
+            expLemma.textContent = this.getAttribute('data-lemma');
+            expLemmaDesc.textContent = this.getAttribute('data-lemma-exp');
+            
+            // Toggle visibility
+            explainPlaceholder.classList.add('d-none');
+            explainPanel.classList.remove('d-none');
+        });
+    });
+
+    // Parse Data for Charts
+    const stems = {{ morph_result.stemmed_tokens_json | safe if morph_result.stemmed_tokens_json else '[]' }};
+    const lemmas = {{ morph_result.lemmatized_tokens_json | safe if morph_result.lemmatized_tokens_json else '[]' }};
+    
+    const origSize = {{ morph_result.original_vocabulary_size | default(0) }};
+    const stemSize = {{ morph_result.stemmed_vocabulary_size | default(0) }};
+    const lemmaSize = {{ morph_result.lemmatized_vocabulary_size | default(0) }};
+    
+    // Vocab Chart
+    const ctxVocab = document.getElementById('vocabChart').getContext('2d');
+    new Chart(ctxVocab, {
+        type: 'bar',
+        data: {
+            labels: ['Original', 'Lemmatized', 'Stemmed'],
+            datasets: [{
+                label: 'Vocabulary Size',
+                data: [origSize, lemmaSize, stemSize],
+                backgroundColor: [
+                    'rgba(200, 200, 200, 0.5)',
+                    'rgba(34, 197, 94, 0.7)',
+                    'rgba(234, 179, 8, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(200, 200, 200, 1)',
+                    'rgba(34, 197, 94, 1)',
+                    'rgba(234, 179, 8, 1)'
+                ],
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    // Compute Frequencies
+    function getTopN(arr, n) {
+        const counts = {};
+        arr.forEach(i => {
+            const token = i.toLowerCase();
+            // simple filter for standard words
+            if(token.match(/[a-z]+/)) {
+                counts[token] = (counts[token] || 0) + 1;
+            }
+        });
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, n);
+    }
+
+    const topStems = getTopN(stems, 15);
+    const topLemmas = getTopN(lemmas, 15);
+
+    // Stems Chart
+    const ctxStems = document.getElementById('stemsChart').getContext('2d');
+    new Chart(ctxStems, {
+        type: 'bar',
+        data: {
+            labels: topStems.map(i => i[0]),
+            datasets: [{
+                label: 'Frequency',
+                data: topStems.map(i => i[1]),
+                backgroundColor: 'rgba(234, 179, 8, 0.6)',
+                borderColor: 'rgba(234, 179, 8, 1)',
+                borderWidth: 1,
+                borderRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+
+    // Lemmas Chart
+    const ctxLemmas = document.getElementById('lemmasChart').getContext('2d');
+    new Chart(ctxLemmas, {
+        type: 'bar',
+        data: {
+            labels: topLemmas.map(i => i[0]),
+            datasets: [{
+                label: 'Frequency',
+                data: topLemmas.map(i => i[1]),
+                backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 1,
+                borderRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+});
+</script>
+{% endif %}
+
+{% if document %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const handleAnalyze = async (btnId, docId) => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        
+        btn.addEventListener('click', async function() {
+            const icon = document.getElementById(`${btnId}-icon`);
+            const text = document.getElementById(`${btnId}-text`);
+            
+            btn.disabled = true;
+            icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
+            text.innerText = 'Processing...';
+            
+            try {
+                const csrfToken = '{{ csrf_token() }}';
+                const response = await fetch(`/api/morphology/${docId}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to process morphology.');
+                    resetBtn();
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Connection error.');
+                resetBtn();
+            }
+            
+            function resetBtn() {
+                btn.disabled = false;
+                icon.className = btnId === 'btn-reanalyze' ? 'bi bi-arrow-repeat me-1' : 'bi bi-play-fill me-1';
+                text.innerText = btnId === 'btn-reanalyze' ? 'Reprocess' : 'Run Morphological Analysis';
+            }
+        });
+    };
+    
+    handleAnalyze('btn-analyze-page', {{ document.id }});
+    handleAnalyze('btn-reanalyze', {{ document.id }});
+});
+</script>
+{% endif %}
+{% endblock %}

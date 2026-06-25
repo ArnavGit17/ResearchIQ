@@ -20,10 +20,10 @@ This document tracks the mapping between the ResearchIQ platform modules and the
 ## Planned Modules
 
 ### Phase 4: Morphology
-- [ ] Part-of-Speech (POS) Tagging
-- [ ] Stemming
-- [ ] Lemmatization
-- [ ] Stopword Removal (Configurable)
+- [x] Part-of-Speech (POS) Tagging
+- [x] Stemming
+- [x] Lemmatization
+- [x] Stopword Removal (Configurable)
 
 ### Phase 5: Statistical NLP
 - [ ] N-Grams Generation

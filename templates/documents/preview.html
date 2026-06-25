@@ -14,7 +14,11 @@
             <div class="d-flex gap-2">
                 <button id="btn-analyze" class="btn btn-primary" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
                     <i class="bi bi-lightning-charge" id="btn-analyze-icon"></i> 
-                    <span id="btn-analyze-text">Run NLP Analysis</span>
+                    <span id="btn-analyze-text">Run Preprocessing</span>
+                </button>
+                <button id="btn-morphology" class="btn btn-info text-white" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-diagram-2" id="btn-morphology-icon"></i> 
+                    <span id="btn-morphology-text">Run Morphological Analysis</span>
                 </button>
             </div>
         </div>
@@ -156,9 +160,72 @@ document.addEventListener('DOMContentLoaded', function() {
         function resetBtn() {
             btnAnalyze.disabled = false;
             icon.className = 'bi bi-lightning-charge';
-            text.innerText = ' Run NLP Analysis';
+            text.innerText = ' Run Preprocessing';
         }
     });
+
+    const btnMorphology = document.getElementById('btn-morphology');
+    if (btnMorphology) {
+        btnMorphology.addEventListener('click', async function() {
+            const docId = this.getAttribute('data-doc-id');
+            const icon = document.getElementById('btn-morphology-icon');
+            const text = document.getElementById('btn-morphology-text');
+            
+            // First run preprocessing, then morphology as requested by the flow
+            btnMorphology.disabled = true;
+            icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm';
+            text.innerText = ' Preprocessing...';
+            
+            try {
+                const csrfToken = '{{ csrf_token() }}';
+                
+                // 1. Run Preprocessing
+                const prepResponse = await fetch(`/api/preprocess/${docId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!prepResponse.ok) {
+                    const data = await prepResponse.json();
+                    throw new Error(data.error || 'Preprocessing failed.');
+                }
+                
+                // 2. Run Morphology
+                text.innerText = ' Analyzing Morphology...';
+                const morphResponse = await fetch(`/api/morphology/${docId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await morphResponse.json();
+                
+                if (morphResponse.ok) {
+                    // Success: Redirect to Morphology Dashboard
+                    window.location.href = `{{ url_for('nlp.morphology') }}?doc=${docId}`;
+                } else {
+                    // Error
+                    alert(data.error || 'An error occurred during morphological analysis.');
+                    resetBtnMorph();
+                }
+            } catch (err) {
+                console.error(err);
+                alert(err.message || 'Failed to connect to the server.');
+                resetBtnMorph();
+            }
+            
+            function resetBtnMorph() {
+                btnMorphology.disabled = false;
+                icon.className = 'bi bi-diagram-2';
+                text.innerText = ' Run Morphological Analysis';
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

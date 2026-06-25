@@ -10,6 +10,7 @@ from flask_login import login_required, current_user
 from app_extensions import db
 from models.document import Document
 from models.preprocessing import PreprocessingResult
+from models.morphology import MorphologyResult
 
 nlp_bp = Blueprint("nlp", __name__, url_prefix="/nlp")
 
@@ -32,6 +33,30 @@ def laboratory():
     return render_template("nlp/laboratory.html", 
                            page="laboratory", 
                            document=document, 
+                           prep_result=prep_result)
+
+
+@nlp_bp.route("/morphology")
+@login_required
+def morphology():
+    doc_id = request.args.get('doc', type=int)
+    document = None
+    morph_result = None
+    prep_result = None
+    
+    if doc_id:
+        document = db.session.get(Document, doc_id)
+        if not document or document.user_id != current_user.id:
+            flash("Document not found or access denied.", "danger")
+            return redirect(url_for('document_bp.index'))
+            
+        morph_result = MorphologyResult.query.filter_by(document_id=document.id).first()
+        prep_result = PreprocessingResult.query.filter_by(document_id=document.id).first()
+        
+    return render_template("nlp/morphology.html", 
+                           page="morphology", 
+                           document=document, 
+                           morph_result=morph_result,
                            prep_result=prep_result)
 
 
