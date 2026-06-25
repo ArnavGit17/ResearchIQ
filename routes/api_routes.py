@@ -12,6 +12,7 @@ from models.document import Document
 from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
+from models.syntax import SyntaxAnalysisResult
 from services.nlp_pipeline import NLPPipeline
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -180,4 +181,60 @@ def get_statistical(document_id: int):
         "language_model":     _safe_load(stat.language_model_json),
         "perplexity_detail":  _safe_load(stat.perplexity_detail_json),
         "processed_at":       stat.processed_at.isoformat() if stat.processed_at else None,
+    })
+
+
+@api_bp.route("/syntax/<int:document_id>", methods=["POST"])
+@login_required
+def run_syntax(document_id: int):
+    """Run Syntax Analysis (Phase 6) on a document."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    success = NLPPipeline.run_syntax_analysis(document_id)
+
+    if success:
+        return jsonify({"status": "success", "message": "Syntax analysis completed"}), 200
+    else:
+        return jsonify({"error": "Failed. Ensure previous phases are complete."}), 500
+
+
+@api_bp.route("/syntax/<int:document_id>", methods=["GET"])
+@login_required
+def get_syntax(document_id: int):
+    """Return Syntax NLP results as JSON."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    syn = SyntaxAnalysisResult.query.filter_by(document_id=document_id).first()
+    if not syn:
+        return jsonify({"error": "Syntax analysis has not been run yet"}), 404
+
+    def _safe_load(field):
+        try:
+            return json.loads(field) if field else []
+        except Exception:
+            return []
+
+    return jsonify({
+        "document_id":               syn.document_id,
+        "noun_count":                syn.noun_count,
+        "verb_count":                syn.verb_count,
+        "adjective_count":           syn.adjective_count,
+        "adverb_count":              syn.adverb_count,
+        "other_count":               syn.other_count,
+        "total_tagged_tokens":       syn.total_tagged_tokens,
+        "noun_verb_ratio":           syn.noun_verb_ratio,
+        "avg_pos_per_sentence":      syn.avg_pos_per_sentence,
+        "sentence_complexity_score": syn.sentence_complexity_score,
+        "dependency_engine":         syn.dependency_engine,
+        "pos_tags":                  _safe_load(syn.pos_tags_json),
+        "syntax_pairs":              _safe_load(syn.syntax_pairs_json),
+        "tag_frequency":             _safe_load(syn.tag_frequency_json),
+        "parse_tree":                _safe_load(syn.parse_tree_json),
+        "parse_tree_text":           _safe_load(syn.parse_tree_text),
+        "dependency":                _safe_load(syn.dependency_json),
+        "processed_at":              syn.processed_at.isoformat() if syn.processed_at else None,
     })

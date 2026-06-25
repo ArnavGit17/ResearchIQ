@@ -24,6 +24,10 @@
                     <i class="bi bi-graph-up" id="btn-statistical-icon"></i>
                     <span id="btn-statistical-text">Run Statistical NLP</span>
                 </button>
+                <button id="btn-syntax" class="btn btn-success text-white" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-diagram-3" id="btn-syntax-icon"></i>
+                    <span id="btn-syntax-text">Run Syntax Analysis</span>
+                </button>
             </div>
         </div>
     </div>
@@ -261,7 +265,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         throw new Error(d.error || `Step failed: ${step.label}`);
                     }
                 }
-                // All steps succeeded – go to Statistical NLP dashboard
                 window.location.href = `{{ url_for('nlp.statistical_nlp') }}?doc=${docId}`;
             } catch (err) {
                 console.error(err);
@@ -272,6 +275,49 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // ── Syntax Analysis button ───────────────────────────────────────────────
+    const btnSyn = document.getElementById('btn-syntax');
+    if (btnSyn) {
+        btnSyn.addEventListener('click', async function() {
+            const docId = this.getAttribute('data-doc-id');
+            const icon  = document.getElementById('btn-syntax-icon');
+            const text  = document.getElementById('btn-syntax-text');
+            const csrf  = '{{ csrf_token() }}';
+
+            btnSyn.disabled = true;
+
+            const steps = [
+                { url: `/api/preprocess/${docId}`,  label: 'Preprocessing…' },
+                { url: `/api/morphology/${docId}`,   label: 'Morphology…'    },
+                { url: `/api/statistical/${docId}`,  label: 'Statistical NLP…' },
+                { url: `/api/syntax/${docId}`,       label: 'Syntax Analysis…' },
+            ];
+
+            try {
+                for (const step of steps) {
+                    icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
+                    text.innerText = step.label;
+                    const res = await fetch(step.url, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
+                    });
+                    if (!res.ok) {
+                        const d = await res.json();
+                        throw new Error(d.error || `Step failed: ${step.label}`);
+                    }
+                }
+                window.location.href = `{{ url_for('nlp.syntax') }}?doc=${docId}`;
+            } catch (err) {
+                console.error(err);
+                alert(err.message || 'Syntax Analysis failed. See console for details.');
+                btnSyn.disabled = false;
+                icon.className = 'bi bi-diagram-3';
+                text.innerText = 'Run Syntax Analysis';
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
+

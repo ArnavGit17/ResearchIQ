@@ -13,9 +13,11 @@ from models.document import Document
 from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
+from models.syntax import SyntaxAnalysisResult
 from services.preprocessing_service import PreprocessingService
 from services.morphology_service import MorphologyService
 from services.statistical_nlp_service import StatisticalNLPService
+from services.syntax_service import SyntaxService, HMMViterbiDemoService
 
 logger = logging.getLogger(__name__)
 
@@ -179,9 +181,64 @@ class NLPPipeline:
         
     @staticmethod
     def run_syntax_analysis(document_id: int) -> bool:
-        """Placeholder for Phase 6: Syntax Analysis"""
-        logger.info(f"Syntax analysis skipped - Phase 6 Placeholder")
-        return True
+        """
+        Runs Phase 6 Syntax Analysis for a document.
+        Requires PreprocessingResult to exist.
+        """
+        logger.info(f"Starting Syntax Analysis for Document {document_id}")
+
+        prep_result = PreprocessingResult.query.filter_by(document_id=document_id).first()
+        if not prep_result or not prep_result.sentences_json:
+            logger.error(
+                f"Cannot run syntax analysis: Preprocessing sentences not found for Document {document_id}"
+            )
+            return False
+
+        morph_result = MorphologyResult.query.filter_by(document_id=document_id).first()
+        tokens = []
+        if morph_result and morph_result.lemmatized_tokens_json:
+            try:
+                tokens = json.loads(morph_result.lemmatized_tokens_json)
+            except:
+                pass
+
+        try:
+            sentences = json.loads(prep_result.sentences_json)
+            results = SyntaxService.run_analysis(sentences, tokens)
+
+            stat_result = SyntaxAnalysisResult.query.filter_by(document_id=document_id).first()
+            if not stat_result:
+                stat_result = SyntaxAnalysisResult(document_id=document_id)
+                db.session.add(stat_result)
+
+            stat_result.pos_tags_json = json.dumps(results["pos_tags"])
+            stat_result.syntax_pairs_json = json.dumps(results["syntax_pairs"])
+            stat_result.tag_frequency_json = json.dumps(results["tag_frequency"])
+            stat_result.parse_tree_json = json.dumps(results["parse_tree"])
+            stat_result.parse_tree_text = json.dumps(results["parse_tree_text"])
+            stat_result.dependency_json = json.dumps(results["dependency"])
+            stat_result.dependency_engine = results["dependency_engine"]
+            stat_result.noun_count = results["noun_count"]
+            stat_result.verb_count = results["verb_count"]
+            stat_result.adjective_count = results["adjective_count"]
+            stat_result.adverb_count = results["adverb_count"]
+            stat_result.other_count = results["other_count"]
+            stat_result.total_tagged_tokens = results["total_tokens"]
+            stat_result.noun_verb_ratio = results["noun_verb_ratio"]
+            stat_result.avg_pos_per_sentence = results["avg_pos_per_sentence"]
+            stat_result.sentence_complexity_score = results["sentence_complexity_score"]
+            stat_result.processed_at = datetime.now(timezone.utc)
+
+            db.session.commit()
+            logger.info(f"Successfully ran syntax analysis for Document {document_id}")
+            return True
+
+        except Exception as e:
+            db.session.rollback()
+            logger.exception(
+                f"Failed to run syntax analysis for Document {document_id}: {str(e)}"
+            )
+            return False
         
     @staticmethod
     def run_semantic_analysis(document_id: int) -> bool:
@@ -213,7 +270,8 @@ class NLPPipeline:
             logger.warning(f"Statistical NLP failed for Document {document_id} – continuing pipeline")
         
         # Step 4: Syntax (Phase 6)
-        NLPPipeline.run_syntax_analysis(document_id)
+        if not NLPPipeline.run_syntax_analysis(document_id):
+            logger.warning(f"Syntax NLP failed for Document {document_id} – continuing pipeline")
         
         # Step 5: Semantic (Phase 7)
         NLPPipeline.run_semantic_analysis(document_id)

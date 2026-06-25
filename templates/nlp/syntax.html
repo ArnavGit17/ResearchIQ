@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block title %}Syntax Analysis – ResearchIQ{% endblock %}
+{% block breadcrumb %}Syntax Analysis{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Syntax Analysis Engine</h1>
+    <p class="page-subtitle">Phase 6 · POS Tagging · Parsing · HMM · Viterbi</p>
+  </div>
+  {% if document %}
+  <a href="{{ url_for('document_bp.index') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Change Document
+  </a>
+  {% endif %}
+</div>
+
+{% if not document %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-diagram-3 display-4 text-primary"></i>
+    </div>
+    <h4 class="mb-3">Select a Document</h4>
+    <p class="text-secondary mb-4">Please select a processed document to view its syntactic structures.</p>
+    <a href="{{ url_for('document_bp.index') }}" class="btn btn-primary px-4">Go to Documents</a>
+</div>
+
+{% elif not stat_result %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-exclamation-triangle display-4 text-warning"></i>
+    </div>
+    <h4 class="mb-3">Statistical Analysis Required</h4>
+    <p class="text-secondary mb-4">Please run Phase 5 Statistical Analysis before continuing to Syntax.</p>
+    <a href="{{ url_for('document_bp.preview', doc_id=document.id) }}" class="btn btn-warning px-4">Go to Preview</a>
+</div>
+
+{% elif not syn_result %}
+<div class="riq-card text-center p-5 mt-4">
+    <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 rounded-circle p-4 mb-3">
+        <i class="bi bi-cpu display-4 text-info"></i>
+    </div>
+    <h4 class="mb-3">Syntax Analysis Pending</h4>
+    <p class="text-secondary mb-4">Run Phase 6 to generate POS tags, dependency graphs, and constituency trees.</p>
+    <button id="btn-run-syn" class="btn btn-info text-white px-4" data-doc-id="{{ document.id }}">
+        <i class="bi bi-play-fill me-1" id="btn-run-syn-icon"></i>
+        <span id="btn-run-syn-text">Run Syntax Analysis</span>
+    </button>
+</div>
+
+{% else %}
+
+{# Document header bar #}
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="riq-card p-3 d-flex justify-content-between align-items-center bg-dark-subtle border-start border-4 border-info">
+      <div>
+        <h5 class="mb-1 d-flex align-items-center gap-2">
+          <i class="bi {{ document.icon }} text-info"></i> {{ document.original_filename }}
+        </h5>
+        <small class="text-muted">Analysed: {{ syn_result.processed_at.strftime('%Y-%m-%d %H:%M') }}</small>
+      </div>
+      <button id="btn-rerun" class="btn btn-sm btn-outline-info" data-doc-id="{{ document.id }}">
+        <i class="bi bi-arrow-repeat" id="btn-rerun-icon"></i>
+        <span id="btn-rerun-text">Reprocess</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════
+   SECTION 8 · Syntax Statistics (Moved to top for dashboard layout)
+═══════════════════════════════════════════════════════════════ #}
+<h5 class="mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+  <i class="bi bi-bar-chart-steps me-2 text-primary"></i>Section 8 · Syntax Statistics
+</h5>
+<div class="row g-3 mb-5">
+  {% set stats = [
+    ("Nouns",       syn_result.noun_count,      "text-info",    "bi-box"),
+    ("Verbs",       syn_result.verb_count,      "text-danger",  "bi-activity"),
+    ("Adjectives",  syn_result.adjective_count, "text-warning", "bi-palette"),
+    ("Adverbs",     syn_result.adverb_count,    "text-success", "bi-speedometer2"),
+    ("Noun/Verb Ratio", "%.2f"|format(syn_result.noun_verb_ratio), "text-primary", "bi-aspect-ratio"),
+    ("Complexity",  "%.1f/10"|format(syn_result.sentence_complexity_score), "text-light", "bi-puzzle"),
+  ] %}
+  {% for label, val, color, icon in stats %}
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="riq-card text-center p-3 h-100">
+      <i class="bi {{ icon }} {{ color }} fs-3 mb-2"></i>
+      <h5 class="{{ color }} mb-0">{{ val }}</h5>
+      <small class="text-muted">{{ label }}</small>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# Visual Analytics Row #}
+<div class="row mb-5">
+  <div class="col-md-6 mb-4">
+    <div class="riq-card h-100">
+      <div class="riq-card-header"><h6 class="riq-card-title m-0">POS Category Distribution</h6></div>
+      <div class="riq-card-body" style="height:250px;"><canvas id="posCategoryChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-6 mb-4">
+    <div class="riq-card h-100">
+      <div class="riq-card-header"><h6 class="riq-card-title m-0">Top Specific Tags (Penn Treebank)</h6></div>
+      <div class="riq-card-body" style="height:250px;"><canvas id="tagFreqChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+
+{# ═══════════════════════════════════════════════════════════════
+   SECTION 1 & 3 · POS Tags & Penn Treebank
+═══════════════════════════════════════════════════════════════ #}
+<h5 class="mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+  <i class="bi bi-tags me-2 text-info"></i>Section 1 &amp; 3 · POS Tagging (Penn Treebank)
+</h5>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">In-Context POS Tagging</h6>
+    <span class="badge bg-info bg-opacity-20 text-info">First 200 tokens</span>
+  </div>
+  <div class="riq-card-body p-0">
+    <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+      <table class="table table-dark table-hover table-sm m-0">
+        <thead class="position-sticky top-0 bg-dark z-1">
+          <tr>
+            <th class="ps-3 py-2 text-muted">#</th>
+            <th class="py-2">Token</th>
+            <th class="py-2 text-info">Tag</th>
+            <th class="py-2 text-primary">Category</th>
+            <th class="py-2 text-light">Meaning (Explainability)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set tags = syn_result.pos_tags_json | fromjson if syn_result.pos_tags_json else [] %}
+          {% for t in tags[:200] %}
+          <tr>
+            <td class="ps-3 text-muted">{{ loop.index }}</td>
+            <td class="text-light fw-bold">{{ t.token }}</td>
+            <td><span class="badge bg-info bg-opacity-20 text-info font-monospace">{{ t.tag }}</span></td>
+            <td>
+               {% if t.category == 'Noun' %}<span class="text-info"><i class="bi bi-box me-1"></i>Noun</span>
+               {% elif t.category == 'Verb' %}<span class="text-danger"><i class="bi bi-activity me-1"></i>Verb</span>
+               {% elif t.category == 'Adjective' %}<span class="text-warning"><i class="bi bi-palette me-1"></i>Adjective</span>
+               {% elif t.category == 'Adverb' %}<span class="text-success"><i class="bi bi-speedometer2 me-1"></i>Adverb</span>
+               {% else %}<span class="text-secondary">{{ t.category }}</span>{% endif %}
+            </td>
+            <td class="text-muted small">{{ t.description }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center py-4">No tags generated.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+{# ═══════════════════════════════════════════════════════════════
+   SECTION 4 · Constituency Parsing
+═══════════════════════════════════════════════════════════════ #}
+<h5 class="mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+  <i class="bi bi-diagram-3 me-2 text-warning"></i>Section 4 · Constituency Parsing
+</h5>
+<div class="riq-card mb-5">
+  <div class="riq-card-header">
+    <h6 class="riq-card-title m-0">NLTK Shallow Chunk Parse Trees (Sample)</h6>
+    <small class="text-muted">Explains grammatical structure through nested noun (NP) and verb (VP) phrases.</small>
+  </div>
+  <div class="riq-card-body p-0">
+    {% set p_trees = syn_result.parse_tree_text | fromjson if syn_result.parse_tree_text else [] %}
+    <div class="accordion accordion-flush" id="parseAccordion">
+      {% for pt in p_trees[:3] %}
+      <div class="accordion-item bg-transparent border-bottom border-secondary border-opacity-25">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed bg-transparent text-light" type="button" data-bs-toggle="collapse" data-bs-target="#parse{{ loop.index }}">
+            <i class="bi bi-tree me-2 text-warning"></i> Parse Tree {{ loop.index }}
+          </button>
+        </h2>
+        <div id="parse{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#parseAccordion">
+          <div class="accordion-body p-3 bg-dark-subtle">
+            <pre class="m-0 text-success font-monospace" style="font-size: 13px;">{{ pt }}</pre>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No parse trees generated.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+
+{# ═══════════════════════════════════════════════════════════════
+   SECTION 5 · Dependency Parsing
+═══════════════════════════════════════════════════════════════ #}
+<h5 class="mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+  <i class="bi bi-bezier2 me-2 text-danger"></i>Section 5 · Dependency Parsing
+</h5>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <div>
+      <h6 class="riq-card-title m-0">spaCy Grammatical Dependencies</h6>
+      <small class="text-muted">Shows how words relate to each other syntactically.</small>
+    </div>
+    <span class="badge bg-danger bg-opacity-20 text-danger">Engine: {{ syn_result.dependency_engine }}</span>
+  </div>
+  <div class="riq-card-body p-0">
+    {% set deps = syn_result.dependency_json | fromjson if syn_result.dependency_json else [] %}
+    
+    <div class="accordion accordion-flush" id="depAccordion">
+      {% for sent_deps in deps[:3] %}
+      <div class="accordion-item bg-transparent border-bottom border-secondary border-opacity-25">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed bg-transparent text-light" type="button" data-bs-toggle="collapse" data-bs-target="#dep{{ loop.index }}">
+            <i class="bi bi-link me-2 text-danger"></i> Dependency Graph {{ loop.index }}
+          </button>
+        </h2>
+        <div id="dep{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#depAccordion">
+          <div class="accordion-body p-0">
+            <table class="table table-dark table-sm m-0">
+              <thead class="bg-dark">
+                <tr>
+                  <th class="ps-3 py-2 text-muted">Token</th>
+                  <th class="py-2 text-danger">Dependency Relation</th>
+                  <th class="py-2">Head Word</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for d in sent_deps %}
+                <tr>
+                  <td class="ps-3 text-light fw-bold font-monospace">{{ d.token }}</td>
+                  <td>
+                    <span class="badge bg-danger bg-opacity-20 text-danger font-monospace">{{ d.dependency }}</span>
+                  </td>
+                  <td class="text-muted">
+                    <span class="text-light fw-bold font-monospace">{{ d.head }}</span> 
+                    <span class="badge bg-secondary bg-opacity-25 text-muted ms-1">{{ d.head_pos }}</span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No dependency data generated.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+
+{# ═══════════════════════════════════════════════════════════════
+   SECTION 6 & 7 · HMM & Viterbi Demo
+═══════════════════════════════════════════════════════════════ #}
+<h5 class="mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+  <i class="bi bi-mortarboard me-2 text-success"></i>Section 6 &amp; 7 · Educational NLP Demonstrations
+</h5>
+
+<div class="row mb-5">
+  {# HMM #}
+  <div class="col-lg-6 mb-4 mb-lg-0">
+    <div class="riq-card h-100">
+      <div class="riq-card-header bg-success bg-opacity-10 border-bottom border-success border-opacity-25">
+        <h6 class="riq-card-title m-0 text-success"><i class="bi bi-diagram-2 me-2"></i>Hidden Markov Model (HMM)</h6>
+      </div>
+      <div class="riq-card-body">
+        <p class="small text-muted">{{ hmm_demo.explanation }}</p>
+        <div class="mb-3 p-3 bg-dark rounded border border-secondary border-opacity-25">
+          <span class="text-light fw-bold d-block mb-1">Observed Words (Emissions)</span>
+          {% for w in hmm_demo.observed_words %}
+            <span class="badge bg-light text-dark font-monospace me-1">{{ w }}</span>
+          {% endfor %}
+        </div>
+        <div class="mb-3 p-3 bg-dark rounded border border-secondary border-opacity-25">
+          <span class="text-success fw-bold d-block mb-1">Hidden States (POS Tags)</span>
+          {% for s in hmm_demo.hidden_states %}
+            <span class="badge bg-success font-monospace me-1">{{ s }}</span>
+          {% endfor %}
+        </div>
+        
+        <div class="row g-2 mt-4">
+          <div class="col-6">
+            <h6 class="text-muted small">Transition Probabilities</h6>
+            <ul class="list-group list-group-flush small">
+              {% for t in hmm_demo.components.transition_probabilities %}
+              <li class="list-group-item bg-transparent text-light border-secondary px-0 py-1 font-monospace">
+                {{ t.from }} → {{ t.to }} <span class="float-end text-info">{{ t.prob }}</span>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="col-6">
+            <h6 class="text-muted small">Emission Probabilities</h6>
+            <ul class="list-group list-group-flush small">
+              {% for e in hmm_demo.components.emission_probabilities %}
+              <li class="list-group-item bg-transparent text-light border-secondary px-0 py-1 font-monospace">
+                {{ e.state }} → {{ e.word }} <span class="float-end text-warning">{{ e.prob }}</span>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Viterbi #}
+  <div class="col-lg-6">
+    <div class="riq-card h-100">
+      <div class="riq-card-header bg-info bg-opacity-10 border-bottom border-info border-opacity-25">
+        <h6 class="riq-card-title m-0 text-info"><i class="bi bi-calculator me-2"></i>Viterbi Decoding Algorithm</h6>
+      </div>
+      <div class="riq-card-body">
+        <p class="small text-muted">{{ viterbi_demo.explanation }}</p>
+        
+        <div class="position-relative mt-4 mb-4 ps-4 border-start border-2 border-info border-opacity-50">
+          {% for step in viterbi_demo.steps %}
+          <div class="mb-4 position-relative">
+            <i class="bi bi-circle-fill text-info position-absolute" style="left: -29px; top: 0px; font-size: 12px; background: #1f2937; padding: 2px;"></i>
+            <h6 class="text-light mb-1">Step {{ step.step }}: <span class="font-monospace fw-bold text-white bg-secondary px-2 py-1 rounded">{{ step.word }}</span></h6>
+            
+            <div class="d-flex gap-2 mt-2">
+              {% for cand in step.candidates %}
+              <div class="p-2 border rounded {% if cand.selected %}border-info bg-info bg-opacity-10{% else %}border-secondary bg-dark{% endif %}">
+                <span class="badge {% if cand.selected %}bg-info{% else %}bg-secondary{% endif %} font-monospace">{{ cand.tag }}</span>
+                <small class="text-muted ms-1 font-monospace">{{ cand.score }}</small>
+                {% if cand.selected %}<i class="bi bi-check-circle-fill text-info ms-1"></i>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        
+        <div class="p-3 bg-dark rounded border border-info border-opacity-50 text-center">
+          <span class="text-muted small d-block mb-1">Most Likely Path</span>
+          <h5 class="text-info font-monospace m-0">
+            {% for p in viterbi_demo.best_path %}
+              {{ p }}{% if not loop.last %} → {% endif %}
+            {% endfor %}
+          </h5>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+
+{% block scripts %}
+{% if document and syn_result %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.07)';
+
+    const tagFreq = {{ syn_result.tag_frequency_json | safe if syn_result.tag_frequency_json else '{}' }};
+    const cN = {{ syn_result.noun_count }};
+    const cV = {{ syn_result.verb_count }};
+    const cAdj = {{ syn_result.adjective_count }};
+    const cAdv = {{ syn_result.adverb_count }};
+    const cO = {{ syn_result.other_count }};
+    
+    // Category Doughnut
+    const ctxCat = document.getElementById('posCategoryChart');
+    if (ctxCat) {
+        new Chart(ctxCat.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Nouns', 'Verbs', 'Adjectives', 'Adverbs', 'Other'],
+                datasets: [{
+                    data: [cN, cV, cAdj, cAdv, cO],
+                    backgroundColor: [
+                        'rgba(6,182,212,0.7)',
+                        'rgba(239,68,68,0.7)',
+                        'rgba(234,179,8,0.7)',
+                        'rgba(34,197,94,0.7)',
+                        'rgba(156,163,175,0.7)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'right' } }
+            }
+        });
+    }
+
+    // Tag Freq Bar
+    const ctxFreq = document.getElementById('tagFreqChart');
+    if (ctxFreq && Object.keys(tagFreq).length > 0) {
+        // top 15
+        const entries = Object.entries(tagFreq).sort((a,b)=>b[1]-a[1]).slice(0,15);
+        new Chart(ctxFreq.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: entries.map(e => e[0]),
+                datasets: [{
+                    label: 'Frequency',
+                    data: entries.map(e => e[1]),
+                    backgroundColor: 'rgba(99,102,241,0.6)',
+                    borderColor: 'rgba(99,102,241,1)',
+                    borderWidth: 1,
+                    borderRadius: 3
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { font: { family: 'monospace' } } },
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endif %}
+
+{% if document %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    async function runSyn(btnId, docId) {
+        const btn  = document.getElementById(btnId);
+        if (!btn) return;
+        btn.addEventListener('click', async function () {
+            const icon = document.getElementById(`${btnId}-icon`) || btn.querySelector('i');
+            const text = document.getElementById(`${btnId}-text`);
+            btn.disabled = true;
+            if (icon) icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
+            if (text) text.innerText = 'Processing Syntax…';
+
+            try {
+                const res = await fetch(`/api/syntax/${docId}`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}', 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Analysis failed.');
+                    btn.disabled = false;
+                    if (icon) icon.className = 'bi bi-play-fill me-1';
+                    if (text) text.innerText = 'Run Syntax Analysis';
+                }
+            } catch (e) {
+                alert('Connection error.');
+                btn.disabled = false;
+            }
+        });
+    }
+    runSyn('btn-run-syn', {{ document.id }});
+    runSyn('btn-rerun',   {{ document.id }});
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -35,9 +35,13 @@ This document tracks the mapping between the ResearchIQ platform modules and the
 - [x] Perplexity Demonstration
 
 ### Phase 6: Syntax Analysis
-- [ ] Dependency Parsing
-- [ ] Constituency Trees
-- [ ] Grammatical Relation Extraction
+- [x] POS Tagging
+- [x] Penn Treebank Tags
+- [x] Constituency Parsing
+- [x] Dependency Parsing
+- [x] HMM Demonstration
+- [x] Viterbi Algorithm
+- [x] Syntax Analysis Dashboard
 
 ### Phase 7: Semantic Analysis
 - [ ] Named Entity Recognition (NER)

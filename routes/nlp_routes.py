@@ -12,6 +12,8 @@ from models.document import Document
 from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
+from models.syntax import SyntaxAnalysisResult
+from services.syntax_service import HMMViterbiDemoService
 
 nlp_bp = Blueprint("nlp", __name__, url_prefix="/nlp")
 
@@ -90,12 +92,32 @@ def statistical_nlp():
 @nlp_bp.route("/syntax")
 @login_required
 def syntax():
-    return render_template("nlp/placeholder.html",
-                           page="syntax",
-                           title="Syntax Analysis",
-                           icon="bi-diagram-3",
-                           description="Dependency parsing, constituency trees, and grammatical relation extraction.",
-                           status="Coming in Phase 2")
+    doc_id = request.args.get('doc', type=int)
+    document = None
+    syn_result = None
+    stat_result = None
+
+    if doc_id:
+        document = db.session.get(Document, doc_id)
+        if not document or document.user_id != current_user.id:
+            flash("Document not found or access denied.", "danger")
+            return redirect(url_for('document_bp.index'))
+
+        syn_result  = SyntaxAnalysisResult.query.filter_by(document_id=document.id).first()
+        stat_result = StatisticalAnalysisResult.query.filter_by(document_id=document.id).first()
+
+    hmm_demo = HMMViterbiDemoService.get_hmm_demo()
+    viterbi_demo = HMMViterbiDemoService.get_viterbi_demo()
+
+    return render_template(
+        "nlp/syntax.html",
+        page="syntax",
+        document=document,
+        syn_result=syn_result,
+        stat_result=stat_result,
+        hmm_demo=hmm_demo,
+        viterbi_demo=viterbi_demo,
+    )
 
 
 @nlp_bp.route("/semantic")
