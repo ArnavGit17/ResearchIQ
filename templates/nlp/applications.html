@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+{% block title %}Application Layer - ResearchIQ{% endff %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 text-gray-800 mb-1">
+                <i class="bi bi-app-indicator text-primary me-2"></i>Application Layer
+            </h1>
+            <p class="text-muted mb-0">Practical applications built on the NLP pipeline</p>
+        </div>
+        <div>
+            {% if document %}
+                <button class="btn btn-primary" onclick="runApplications({{ document.id }})">
+                    <i class="bi bi-play-fill"></i> Generate Applications
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not document %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>Please select a document from the Document Intelligence page first.
+        </div>
+    {% elif not app_result %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>Application results not found. Click "Generate Applications" to process.
+        </div>
+    {% else %}
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card shadow">
+                    <div class="card-header border-bottom">
+                        <ul class="nav nav-tabs card-header-tabs" id="appTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="ner-tab" data-bs-toggle="tab" href="#ner" role="tab">Entities (NER)</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="keywords-tab" data-bs-toggle="tab" href="#keywords" role="tab">Keywords</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="summary-tab" data-bs-toggle="tab" href="#summary" role="tab">Summarization</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="qa-tab" data-bs-toggle="tab" href="#qa" role="tab">Question Answering</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="search-tab" data-bs-toggle="tab" href="#search" role="tab">Semantic Search</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="appTabsContent">
+                            
+                            <!-- NER Tab -->
+                            <div class="tab-pane fade show active" id="ner" role="tabpanel">
+                                <div class="row mb-4">
+                                    <div class="col-md-4">
+                                        <div class="card border-left-primary shadow h-100 py-2">
+                                            <div class="card-body">
+                                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Entities Found</div>
+                                                <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalEntities">0</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <canvas id="nerChart" height="100"></canvas>
+                                    </div>
+                                </div>
+                                <h5 class="mb-3">Top Entities Identified</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Entity</th>
+                                                <th>Type</th>
+                                                <th>Frequency</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="topEntitiesTable"></tbody>
+                                    </table>
+                                </div>
+                                <h5 class="mt-4 mb-3">Explainability: Entity Context Log</h5>
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-sm table-striped">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Entity</th>
+                                                <th>Sentence Context</th>
+                                                <th>Reason (spaCy model)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="entityContextTable"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Keywords Tab -->
+                            <div class="tab-pane fade" id="keywords" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <canvas id="keywordChart" height="200"></canvas>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h5 class="mb-3">Top Keywords Overview</h5>
+                                        <ul class="list-group list-group-flush" id="keywordList"></ul>
+                                    </div>
+                                </div>
+                                <h5 class="mt-4 mb-3">Explainability: Keyword Importance Scores</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Keyword</th>
+                                                <th>POS Tag</th>
+                                                <th>Score</th>
+                                                <th>Confidence</th>
+                                                <th>Reasoning</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="keywordExplainTable"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Summary Tab -->
+                            <div class="tab-pane fade" id="summary" role="tabpanel">
+                                <div class="row mb-4">
+                                    <div class="col-md-12">
+                                        <div class="card bg-light">
+                                            <div class="card-body">
+                                                <h5 class="card-title text-success"><i class="bi bi-card-text me-2"></i>Extractive Summary</h5>
+                                                <p class="card-text fs-5" id="summaryText" style="line-height: 1.6;"></p>
+                                            </div>
+                                            <div class="card-footer text-muted" id="summaryStats"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h5 class="mb-3">Explainability: Sentence Ranking</h5>
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>Rank</th>
+                                                <th>Sentence</th>
+                                                <th>Score</th>
+                                                <th>Selection Reason</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="summaryRankTable"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- QA Tab -->
+                            <div class="tab-pane fade" id="qa" role="tabpanel">
+                                <div class="card mb-4 border-primary">
+                                    <div class="card-body">
+                                        <h5 class="card-title mb-3">Ask a question about this document</h5>
+                                        <div class="input-group">
+                                            <input type="text" id="qaInput" class="form-control form-control-lg" placeholder="e.g. What is the main conclusion?">
+                                            <button class="btn btn-primary" type="button" onclick="askQuestion({{ document.id }})">
+                                                <i class="bi bi-search me-1"></i> Ask
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="qaResultBox" class="d-none">
+                                    <div class="card shadow-sm border-success mb-3">
+                                        <div class="card-body">
+                                            <h6 class="text-muted text-uppercase small font-weight-bold mb-2">Answer</h6>
+                                            <p class="fs-5 mb-0" id="qaAnswer"></p>
+                                        </div>
+                                    </div>
+                                    <div class="card shadow-sm border-info">
+                                        <div class="card-body bg-light">
+                                            <h6 class="text-muted text-uppercase small font-weight-bold mb-2">Explainable AI Evidence</h6>
+                                            <p class="mb-1"><strong>Reasoning:</strong> <span id="qaReason"></span></p>
+                                            <p class="mb-1"><strong>Confidence Score:</strong> <span id="qaConfidence" class="badge bg-success"></span></p>
+                                            <p class="mb-0"><strong>Original Sentence:</strong> <em id="qaMatched"></em></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Search Tab -->
+                            <div class="tab-pane fade" id="search" role="tabpanel">
+                                <div class="card mb-4 border-secondary">
+                                    <div class="card-body">
+                                        <h5 class="card-title mb-3">Semantic Search</h5>
+                                        <div class="input-group">
+                                            <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Enter keywords or concepts...">
+                                            <button class="btn btn-secondary" type="button" onclick="performSearch({{ document.id }})">
+                                                <i class="bi bi-binoculars me-1"></i> Search
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="searchResultsBox"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Data Injection -->
+{% if app_result %}
+<script>
+    const APP_DATA = {
+        entities: {{ app_result.entities_json | default('{}') | safe }},
+        keywords: {{ app_result.keywords_json | default('[]') | safe }},
+        summary: {{ app_result.summary_json | default('{}') | safe }}
+    };
+</script>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+async function runApplications(docId) {
+    if (!confirm("Run Application pipeline? This may take a moment.")) return;
+    try {
+        const res = await fetch(`/api/applications/${docId}`, { method: 'POST' });
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            alert("Error running Application pipeline.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error.");
+    }
+}
+
+async function askQuestion(docId) {
+    const q = document.getElementById("qaInput").value;
+    if (!q) return;
+    
+    try {
+        const res = await fetch(`/api/qa/${docId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({question: q})
+        });
+        const data = await res.json();
+        
+        document.getElementById("qaResultBox").classList.remove("d-none");
+        document.getElementById("qaAnswer").textContent = data.answer;
+        document.getElementById("qaReason").textContent = data.reason;
+        document.getElementById("qaConfidence").textContent = data.confidence;
+        document.getElementById("qaMatched").textContent = data.matched_sentence;
+        
+    } catch (err) {
+        alert("QA Failed.");
+    }
+}
+
+async function performSearch(docId) {
+    const q = document.getElementById("searchInput").value;
+    if (!q) return;
+    
+    try {
+        const res = await fetch(`/api/search/${docId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: q})
+        });
+        const data = await res.json();
+        
+        const box = document.getElementById("searchResultsBox");
+        box.innerHTML = "";
+        
+        if (!data.results || data.results.length === 0) {
+            box.innerHTML = '<div class="alert alert-info">No highly relevant results found.</div>';
+            return;
+        }
+        
+        data.results.forEach((r, i) => {
+            box.innerHTML += `
+                <div class="card mb-3 shadow-sm border-left-info">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-primary">Result #${i+1}</span>
+                            <span class="badge bg-info text-dark">Relevance: ${r.relevance.toFixed(2)}</span>
+                        </div>
+                        <p class="mb-2 fs-5">"${r.sentence}"</p>
+                        <div class="small text-muted bg-light p-2 rounded">
+                            <strong>Reason:</strong> ${r.reason}<br>
+                            <strong>Matched Terms:</strong> ${r.matched_keywords.join(", ")}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+    } catch (err) {
+        alert("Search Failed.");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    if (typeof APP_DATA === 'undefined') return;
+
+    // 1. NER Visualization
+    if (APP_DATA.entities && APP_DATA.entities.distribution) {
+        document.getElementById("totalEntities").textContent = APP_DATA.entities.entities.length;
+        
+        const dist = APP_DATA.entities.distribution;
+        new Chart(document.getElementById('nerChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(dist),
+                datasets: [{
+                    label: 'Entity Type Frequency',
+                    data: Object.values(dist),
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        // Populate NER Tables
+        const topEntTable = document.getElementById("topEntitiesTable");
+        APP_DATA.entities.top_entities.forEach(te => {
+            topEntTable.innerHTML += `<tr><td><strong>${te.entity}</strong></td><td><span class="badge bg-secondary">${te.type}</span></td><td>${te.count}</td></tr>`;
+        });
+
+        const entCtxTable = document.getElementById("entityContextTable");
+        APP_DATA.entities.entities.slice(0, 50).forEach(e => { // Limit to 50 for UI
+            entCtxTable.innerHTML += `<tr><td><span class="badge bg-primary">${e.entity}</span> <small>(${e.type})</small></td><td>${e.sentence}</td><td><small class="text-muted">${e.reason}</small></td></tr>`;
+        });
+    }
+
+    // 2. Keywords Visualization
+    if (APP_DATA.keywords && APP_DATA.keywords.length > 0) {
+        const kwLabels = APP_DATA.keywords.slice(0,10).map(k => k.keyword);
+        const kwScores = APP_DATA.keywords.slice(0,10).map(k => k.score);
+        
+        new Chart(document.getElementById('keywordChart').getContext('2d'), {
+            type: 'polarArea',
+            data: {
+                labels: kwLabels,
+                datasets: [{
+                    label: 'Keyword Score',
+                    data: kwScores,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.5)', 'rgba(75, 192, 192, 0.5)', 'rgba(255, 205, 86, 0.5)', 'rgba(201, 203, 207, 0.5)', 'rgba(54, 162, 235, 0.5)',
+                        'rgba(153, 102, 255, 0.5)', 'rgba(255, 159, 64, 0.5)', 'rgba(199, 199, 199, 0.5)', 'rgba(83, 102, 255, 0.5)', 'rgba(40, 159, 64, 0.5)'
+                    ]
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const kwList = document.getElementById("keywordList");
+        const kwExpTable = document.getElementById("keywordExplainTable");
+        APP_DATA.keywords.forEach((k, i) => {
+            if (i < 10) kwList.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">${k.keyword} <span class="badge bg-primary rounded-pill">${k.score}</span></li>`;
+            kwExpTable.innerHTML += `<tr>
+                <td><strong>${k.keyword}</strong></td>
+                <td><span class="badge bg-info text-dark">${k.part_of_speech}</span></td>
+                <td>${k.score}</td>
+                <td>${(k.confidence*100).toFixed(0)}%</td>
+                <td><small class="text-muted">${k.reason}</small></td>
+            </tr>`;
+        });
+    }
+
+    // 3. Summarization
+    if (APP_DATA.summary && APP_DATA.summary.summary_text) {
+        document.getElementById("summaryText").textContent = APP_DATA.summary.summary_text;
+        
+        const stats = APP_DATA.summary.statistics;
+        document.getElementById("summaryStats").innerHTML = `
+            Extracted ${stats.summary_sentences} sentences out of ${stats.original_sentences} total sentences. 
+            <strong>Compression Ratio: ${(stats.compression_ratio*100).toFixed(0)}%</strong>
+        `;
+
+        const sumRankTable = document.getElementById("summaryRankTable");
+        APP_DATA.summary.ranked_sentences.forEach((r, i) => {
+            sumRankTable.innerHTML += `<tr>
+                <td>${i+1}</td>
+                <td>${r.sentence}</td>
+                <td><span class="badge bg-success">${r.score}</span></td>
+                <td><small>${r.reason}</small></td>
+            </tr>`;
+        });
+    }
+});
+</script>
+{% endblock %}

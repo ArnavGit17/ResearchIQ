@@ -63,7 +63,15 @@ This document tracks the mapping between the ResearchIQ platform modules and the
     - [x] Ambiguity Resolution integration
   - **Status:** **IMPLEMENTATION** (Pragmatic Dashboard integrated)
 
-### Phase 9: NLP Applications
-- [ ] Document Summarization (Extractive & Abstractive)
-- [ ] Semantic Search (Dense Vector Retrieval)
-- [ ] Question Answering Engine
+### Phase 9: NLP Applications & Research Intelligence
+  - **Topic:** Practical application and executive analytics of NLP engines.
+  - **Tasks:**
+    - [x] Named Entity Recognition (spaCy)
+    - [x] Keyword Extraction (TF-IDF + POS)
+    - [x] Automatic Summarization (Extractive)
+    - [x] Question Answering (Document Level)
+    - [x] Semantic Search
+    - [x] Research Intelligence Dashboard
+    - [x] Document Comparison & Batch Analysis
+    - [x] JSON/PDF Export Features
+  - **Status:** **COMPLETED** (Executive Dashboard active)

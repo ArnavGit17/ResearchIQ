@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Compare Documents{% endblock %}
+{% block breadcrumb %}Compare Documents{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cmp-card { background: rgba(30,27,75,0.5); backdrop-filter: blur(16px); border: 1px solid rgba(124,58,237,.25); border-radius: 16px; padding: 1.5rem; }
+  .cmp-header { font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; color: #94a3b8; margin-bottom: .3rem; }
+  .cmp-val { font-size: 1.4rem; font-weight: 800; }
+  .delta-pos { color: #10b981; }
+  .delta-neg { color: #ef4444; }
+  .delta-neu { color: #94a3b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-2">
+  <div class="d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-layout-split fs-3 text-primary"></i>
+    <h2 class="mb-0 fw-bold">Document Comparison</h2>
+    <a href="{{ url_for('dashboard.batch') }}" class="btn btn-sm btn-outline-secondary ms-auto">
+      <i class="bi bi-collection me-1"></i>Batch View
+    </a>
+  </div>
+
+  <!-- Selector form -->
+  <div class="cmp-card mb-4">
+    <form method="GET" class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small text-muted">Document 1</label>
+        <select name="doc1" class="form-select">
+          <option value="">-- Select document --</option>
+          {% for doc in user_docs %}
+          <option value="{{ doc.id }}" {% if doc.id == doc1_id %}selected{% endif %}>
+            {{ doc.original_filename }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small text-muted">Document 2</label>
+        <select name="doc2" class="form-select">
+          <option value="">-- Select document --</option>
+          {% for doc in user_docs %}
+          <option value="{{ doc.id }}" {% if doc.id == doc2_id %}selected{% endif %}>
+            {{ doc.original_filename }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-layout-split me-1"></i>Compare
+        </button>
+      </div>
+    </form>
+  </div>
+
+  {% if comparison and not comparison.get('error') %}
+  {% set d1 = comparison.doc1 %}
+  {% set d2 = comparison.doc2 %}
+  {% set deltas = comparison.deltas %}
+
+  <div class="row g-3 mb-3">
+    {% for label, key, d1_field, d2_field in [
+        ('Words', 'words', d1.overview, d2.overview),
+        ('Health Score', 'health_score', d1.health, d2.health),
+        ('Reading Time (min)', 'reading_time', d1.overview, d2.overview),
+        ('Vocabulary Size', 'vocabulary_size', d1.insights, d2.insights),
+        ('Perplexity', 'perplexity', d1.complexity, d2.complexity),
+        ('Avg Sentence Length', 'avg_sentence_length', d1.readability, d2.readability),
+    ] %}
+    <div class="col-md-4">
+      <div class="cmp-card text-center">
+        <div class="cmp-header">{{ label }}</div>
+        <div class="row g-0 align-items-center">
+          <div class="col">
+            <div class="cmp-val text-primary">
+              {{ d1_field.get(key, d1_field.get('composite', '—')) }}
+            </div>
+            <div class="small text-muted text-truncate">{{ d1.filename | truncate(18) }}</div>
+          </div>
+          <div class="col-2">
+            {% set delta = deltas.get(key, 0) %}
+            <div class="fw-bold {% if delta > 0 %}delta-pos{% elif delta < 0 %}delta-neg{% else %}delta-neu{% endif %}">
+              {% if delta > 0 %}+{% endif %}{{ delta }}
+            </div>
+          </div>
+          <div class="col">
+            <div class="cmp-val text-info">
+              {{ d2_field.get(key, d2_field.get('composite', '—')) }}
+            </div>
+            <div class="small text-muted text-truncate">{{ d2.filename | truncate(18) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="cmp-card">
+        <h6 class="fw-bold mb-3"><i class="bi bi-key-fill text-warning me-2"></i>Top Keywords Comparison</h6>
+        <div class="row">
+          <div class="col-6">
+            <p class="small text-primary fw-bold mb-1">{{ d1.filename | truncate(20) }}</p>
+            {% for kw in d1.insights.get('top_keywords', [])[:8] %}
+            <span class="badge bg-primary bg-opacity-25 border border-primary me-1 mb-1">{{ kw.keyword }}</span>
+            {% endfor %}
+          </div>
+          <div class="col-6">
+            <p class="small text-info fw-bold mb-1">{{ d2.filename | truncate(20) }}</p>
+            {% for kw in d2.insights.get('top_keywords', [])[:8] %}
+            <span class="badge bg-info bg-opacity-25 border border-info me-1 mb-1">{{ kw.keyword }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="cmp-card">
+        <h6 class="fw-bold mb-3"><i class="bi bi-heart-pulse-fill text-danger me-2"></i>Health Score Breakdown</h6>
+        <canvas id="compareRadar" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const sub1 = {{ d1.health.get('subscores', {}) | tojson }};
+    const sub2 = {{ d2.health.get('subscores', {}) | tojson }};
+    const labels = Object.keys(sub1).map(k => k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()));
+    new Chart(document.getElementById('compareRadar').getContext('2d'), {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [
+          { label: '{{ d1.filename | truncate(20) }}', data: Object.values(sub1), backgroundColor: 'rgba(13,110,253,0.2)', borderColor: '#0d6efd', pointBackgroundColor: '#0d6efd' },
+          { label: '{{ d2.filename | truncate(20) }}', data: Object.values(sub2), backgroundColor: 'rgba(6,182,212,0.2)', borderColor: '#06b6d4', pointBackgroundColor: '#06b6d4' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { r: { min: 0, max: 100, grid: { color:'rgba(255,255,255,0.08)' }, pointLabels: { color:'#94a3b8', font:{size:9} }, ticks:{display:false} } },
+        plugins: { legend: { labels: { color:'#94a3b8' } } }
+      }
+    });
+  })();
+  </script>
+  {% elif comparison and comparison.get('error') %}
+  <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>{{ comparison.error }}</div>
+  {% elif doc1_id and doc2_id %}
+  <div class="alert alert-info"><i class="bi bi-info-circle me-2"></i>Loading comparison...</div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}

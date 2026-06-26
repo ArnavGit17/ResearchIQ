@@ -39,6 +39,7 @@
       </div>
 
       <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="riq-form-group">
           <label for="email" class="riq-label">Email Address</label>
           <div class="riq-input-wrapper">

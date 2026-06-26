@@ -1,0 +1,624 @@
+{% extends "base.html" %}
+{% block title %}Research Intelligence — {{ document.original_filename }}{% endblock %}
+{% block breadcrumb %}Research Intelligence Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+  :root {
+    --ri-accent:   #7c3aed;
+    --ri-accent2:  #06b6d4;
+    --ri-gold:     #f59e0b;
+    --ri-green:    #10b981;
+    --ri-red:      #ef4444;
+    --ri-card-bg:  rgba(30, 27, 75, 0.5);
+    --ri-glass:    rgba(255,255,255,0.05);
+    --ri-border:   rgba(124, 58, 237, 0.25);
+    --ri-shadow:   0 8px 32px rgba(124, 58, 237, 0.15);
+  }
+
+  /* ── Glass cards ── */
+  .ri-card {
+    background: var(--ri-card-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--ri-border);
+    border-radius: 16px;
+    box-shadow: var(--ri-shadow);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .ri-card:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(124,58,237,.25); }
+
+  /* ── KPI strip ── */
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .kpi-box { background: var(--ri-glass); border: 1px solid var(--ri-border); border-radius: 12px; padding: 1rem; text-align: center; }
+  .kpi-box .kpi-val { font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, var(--ri-accent), var(--ri-accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .kpi-box .kpi-lbl { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin-top: .2rem; }
+
+  /* ── Health badge ── */
+  .health-ring { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; font-weight: 800; font-size: 1.6rem; border: 6px solid; }
+
+  /* ── Section header ── */
+  .section-header { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+  .section-header i { font-size: 1.3rem; color: var(--ri-accent); }
+  .section-header h4 { margin: 0; font-weight: 700; }
+
+  /* ── Pipeline stepper ── */
+  .pipeline-step { display: flex; align-items: flex-start; gap: 1rem; padding: .75rem 0; }
+  .step-dot { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .step-dot.done   { background: var(--ri-green); color: #fff; }
+  .step-dot.pending{ background: #374151; color: #6b7280; }
+  .step-line { width: 2px; height: 32px; margin: 0 auto; margin-left: 19px; }
+  .step-line.done   { background: var(--ri-green); }
+  .step-line.pending{ background: #374151; }
+
+  /* ── Keyword chips ── */
+  .kw-chip { display: inline-block; padding: .25rem .65rem; border-radius: 20px; font-size: .75rem; font-weight: 600; margin: .2rem; background: rgba(124,58,237,.2); border: 1px solid rgba(124,58,237,.4); color: #c4b5fd; }
+
+  /* ── Entity pill ── */
+  .ent-pill { display: inline-block; padding: .2rem .55rem; border-radius: 6px; font-size: .72rem; font-weight: 700; margin: .15rem; }
+
+  /* ── Score bars ── */
+  .score-bar-wrap { margin-bottom: .6rem; }
+  .score-bar-label { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: .2rem; }
+  .score-bar { height: 8px; border-radius: 4px; background: #1e1b4b; overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--ri-accent), var(--ri-accent2)); transition: width 1s ease; }
+
+  /* ── Print / Export ── */
+  @media print {
+    .sidebar, .top-navbar, .no-print { display: none !important; }
+    .main-wrapper { margin: 0 !important; }
+    .ri-card { break-inside: avoid; }
+  }
+
+  /* ── Difficulty gauge colors ── */
+  .diff-easy   { border-color: var(--ri-green) !important; color: var(--ri-green); }
+  .diff-medium { border-color: var(--ri-gold)  !important; color: var(--ri-gold);  }
+  .diff-hard   { border-color: var(--ri-red)   !important; color: var(--ri-red);   }
+
+  /* ── XAI accordion ── */
+  .xai-item { border: 1px solid var(--ri-border); border-radius: 8px; margin-bottom: .4rem; }
+  .xai-item summary { padding: .6rem 1rem; cursor: pointer; font-weight: 600; list-style: none; }
+  .xai-item summary::after { content: '▸'; float: right; }
+  .xai-item[open] summary::after { content: '▾'; }
+  .xai-body { padding: .6rem 1rem .9rem; font-size: .85rem; color: #94a3b8; border-top: 1px solid var(--ri-border); }
+
+  /* Animated gradient header */
+  .ri-hero { background: linear-gradient(135deg, #1e1b4b 0%, #2d1b69 50%, #0f172a 100%); padding: 1.5rem; border-radius: 16px; margin-bottom: 1.5rem; position: relative; overflow: hidden; }
+  .ri-hero::before { content:''; position: absolute; inset: 0; background: radial-gradient(ellipse at 70% 50%, rgba(124,58,237,.3) 0%, transparent 60%); pointer-events: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-2">
+
+  <!-- ── HERO HEADER ────────────────────────────────────────────────────── -->
+  <div class="ri-hero mb-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-trophy-fill text-warning fs-4"></i>
+          <h2 class="mb-0 fw-800" style="font-size:1.6rem;">Research Intelligence Dashboard</h2>
+        </div>
+        <p class="text-muted mb-0 small">
+          <i class="bi bi-file-earmark-text me-1"></i>
+          {{ document.original_filename }}
+          &nbsp;·&nbsp;
+          <i class="bi bi-clock me-1"></i>Uploaded {{ document.upload_date.strftime('%d %b %Y') if document.upload_date else 'N/A' }}
+        </p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap no-print">
+        <button class="btn btn-sm btn-outline-info" onclick="exportJSON({{ document.id }})">
+          <i class="bi bi-download me-1"></i>Export JSON
+        </button>
+        <button class="btn btn-sm btn-outline-warning" onclick="window.print()">
+          <i class="bi bi-printer me-1"></i>Print Report
+        </button>
+        <a href="{{ url_for('dashboard.compare') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-layout-split me-1"></i>Compare
+        </a>
+        <a href="{{ url_for('dashboard.batch') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-collection me-1"></i>Batch View
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── KPI STRIP ─────────────────────────────────────────────────────── -->
+  <div class="kpi-strip">
+    <div class="kpi-box">
+      <div class="kpi-val">{{ overview.get('words', 0) | int }}</div>
+      <div class="kpi-lbl">Words</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ overview.get('sentences', 0) | int }}</div>
+      <div class="kpi-lbl">Sentences</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ insights.get('vocabulary_size', 0) | int }}</div>
+      <div class="kpi-lbl">Vocabulary</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ overview.get('pages', 1) }}</div>
+      <div class="kpi-lbl">Est. Pages</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ overview.get('reading_time_min', 0) }}m</div>
+      <div class="kpi-lbl">Reading Time</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ health.get('composite', '—') }}</div>
+      <div class="kpi-lbl">Health Score</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ "%.2f"|format(complexity.get('perplexity', 0)) }}</div>
+      <div class="kpi-lbl">Perplexity</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-val">{{ entities.get('top_entities', []) | length }}</div>
+      <div class="kpi-lbl">Entities</div>
+    </div>
+  </div>
+
+  <!-- ── ROW 1: Executive Summary + Health Score ───────────────────────── -->
+  <div class="row g-3 mb-3">
+
+    <!-- Executive Summary -->
+    <div class="col-lg-7">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-file-earmark-richtext"></i>
+          <h4>Executive Summary</h4>
+          <span class="badge bg-primary ms-auto">{{ ex_summary.get('communication_style', 'N/A') }}</span>
+        </div>
+        <p class="fs-6 lh-lg text-light" style="max-height:200px;overflow-y:auto;">
+          {{ ex_summary.get('summary_text', 'No summary available.') }}
+        </p>
+        <hr class="border-secondary">
+        <div class="row text-center g-2">
+          <div class="col-4">
+            <div class="small text-muted">Primary Intent</div>
+            <strong>{{ ex_summary.get('primary_intent', '—') }}</strong>
+          </div>
+          <div class="col-4">
+            <div class="small text-muted">Compression</div>
+            <strong>{{ "%.0f"|format((ex_summary.get('compression_ratio', 0)) * 100) }}%</strong>
+          </div>
+          <div class="col-4">
+            <div class="small text-muted">Confidence</div>
+            <strong>{{ "%.0f"|format(ex_summary.get('avg_confidence', 0) * 100) }}%</strong>
+          </div>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          Source: {{ ex_summary.get('source_phases', ['Phase 9A, 8']) | join(', ') }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Health Score -->
+    <div class="col-lg-5">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-heart-pulse-fill"></i>
+          <h4>Document Health Score</h4>
+          <span class="badge bg-secondary ms-auto small">ResearchIQ metric</span>
+        </div>
+        <div class="d-flex align-items-center gap-4 mb-3">
+          <div class="health-ring
+            {% if health.get('composite',0) >= 80 %}diff-easy
+            {% elif health.get('composite',0) >= 50 %}diff-medium
+            {% else %}diff-hard{% endif %}">
+            {{ health.get('composite', '—') }}
+            <small class="fw-normal" style="font-size:.7rem;">/ 100</small>
+          </div>
+          <div>
+            <div class="fs-5 fw-700">{{ health.get('grade', '—') }}</div>
+            <canvas id="healthRadar" height="140"></canvas>
+          </div>
+        </div>
+        {% for key, val in health.get('subscores', {}).items() %}
+        <div class="score-bar-wrap">
+          <div class="score-bar-label">
+            <span>{{ key.replace('_',' ').title() }}</span>
+            <span class="text-info">{{ val }}</span>
+          </div>
+          <div class="score-bar"><div class="score-bar-fill" style="width:{{ val }}%"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 2: Research Insights + Entity Intelligence ───────────────── -->
+  <div class="row g-3 mb-3">
+
+    <!-- Research Insights -->
+    <div class="col-lg-6">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-lightbulb-fill"></i>
+          <h4>Research Insights</h4>
+        </div>
+
+        <!-- Keyword chips -->
+        <p class="small text-muted mb-1">Top Keywords</p>
+        <div class="mb-3">
+          {% for kw in insights.get('top_keywords', [])[:15] %}
+            <span class="kw-chip">{{ kw.keyword }}</span>
+          {% endfor %}
+        </div>
+
+        <!-- Top bigrams -->
+        <p class="small text-muted mb-1">Top Noun Phrases (Bigrams)</p>
+        <div class="mb-3">
+          {% for bg in insights.get('top_bigrams', [])[:8] %}
+            {% if bg is iterable and bg | length >= 2 %}
+            <span class="kw-chip" style="background:rgba(6,182,212,.15);border-color:rgba(6,182,212,.3);color:#67e8f9;">
+              {{ bg[0] if bg is not string else bg }}
+            </span>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <hr class="border-secondary">
+        <div class="row text-center g-2">
+          <div class="col-3">
+            <div class="kpi-val" style="font-size:1.2rem;">{{ insights.get('total_tokens',0) | int }}</div>
+            <div class="kpi-lbl">Tokens</div>
+          </div>
+          <div class="col-3">
+            <div class="kpi-val" style="font-size:1.2rem;">{{ insights.get('unique_lemmas',0) | int }}</div>
+            <div class="kpi-lbl">Lemmas</div>
+          </div>
+          <div class="col-3">
+            <div class="kpi-val" style="font-size:1.2rem;">{{ insights.get('wordnet_coverage',0) | int }}</div>
+            <div class="kpi-lbl">WordNet</div>
+          </div>
+          <div class="col-3">
+            <div class="kpi-val" style="font-size:1.2rem;">{{ "%.3f"|format(insights.get('type_token_ratio',0)) }}</div>
+            <div class="kpi-lbl">TTR</div>
+          </div>
+        </div>
+
+        <canvas id="keywordChart" class="mt-3" height="140"></canvas>
+      </div>
+    </div>
+
+    <!-- Entity Intelligence -->
+    <div class="col-lg-6">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-people-fill"></i>
+          <h4>Entity Intelligence</h4>
+        </div>
+        <canvas id="entityChart" height="120" class="mb-3"></canvas>
+
+        {% set colors = {'PERSON':'#7c3aed','ORG':'#06b6d4','GPE':'#10b981','LOC':'#f59e0b','DATE':'#ef4444','TIME':'#8b5cf6','MONEY':'#ec4899','PRODUCT':'#14b8a6','EVENT':'#f97316','LAW':'#84cc16','LANGUAGE':'#06b6d4'} %}
+        {% for etype, elist in entities.get('by_type', {}).items() %}
+        <div class="mb-2">
+          <span class="small text-muted text-uppercase fw-bold me-1">{{ etype }}</span>
+          {% for name in elist[:6] %}
+            <span class="ent-pill"
+              style="background:{{ colors.get(etype,'#6366f1') }}22; border:1px solid {{ colors.get(etype,'#6366f1') }}66; color:{{ colors.get(etype,'#a5b4fc') }};">
+              {{ name }}
+            </span>
+          {% endfor %}
+          {% if elist | length > 6 %}
+            <span class="text-muted small">+{{ elist|length - 6 }} more</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 3: Topic Analysis + Readability + Complexity ─────────────── -->
+  <div class="row g-3 mb-3">
+
+    <!-- Topic Analysis -->
+    <div class="col-lg-4">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-tags-fill"></i>
+          <h4>Topic Analysis</h4>
+        </div>
+        <canvas id="topicChart" height="180"></canvas>
+        <div class="mt-3">
+          {% for t in insights.get('topics', []) %}
+          <div class="d-flex justify-content-between align-items-center mb-1 small">
+            <span>{{ t.name }}</span>
+            <span class="text-info">{{ t.importance }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Readability -->
+    <div class="col-lg-4">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-speedometer2"></i>
+          <h4>Readability Analysis</h4>
+        </div>
+        <div class="text-center mb-3">
+          <div class="health-ring d-inline-flex
+            {% if readability.get('difficulty') == 'Easy' %}diff-easy
+            {% elif readability.get('difficulty') == 'Medium' %}diff-medium
+            {% else %}diff-hard{% endif %}"
+            style="width:90px;height:90px;font-size:1rem;">
+            {{ readability.get('difficulty', '—') }}
+          </div>
+          <p class="small text-muted mt-2 mb-0">{{ readability.get('difficulty_description','') }}</p>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-borderless mb-0">
+            <tbody>
+              <tr><td class="text-muted small">Avg Sentence Length</td><td class="text-end fw-bold">{{ "%.1f"|format(readability.get('avg_sentence_length',0)) }} words</td></tr>
+              <tr><td class="text-muted small">Avg Word Length</td><td class="text-end fw-bold">{{ "%.2f"|format(readability.get('avg_word_length',0)) }} chars</td></tr>
+              <tr><td class="text-muted small">Vocabulary Size</td><td class="text-end fw-bold">{{ readability.get('vocabulary_size',0) | int }}</td></tr>
+              <tr><td class="text-muted small">Reading Time</td><td class="text-end fw-bold">{{ readability.get('reading_time_min',0) }} min</td></tr>
+              <tr><td class="text-muted small">Type-Token Ratio</td><td class="text-end fw-bold">{{ "%.4f"|format(readability.get('type_token_ratio',0)) }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted small mt-2 mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          {{ readability.get('explanation','') }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Complexity -->
+    <div class="col-lg-4">
+      <div class="ri-card h-100 p-4">
+        <div class="section-header">
+          <i class="bi bi-cpu-fill"></i>
+          <h4>Document Complexity</h4>
+        </div>
+        <canvas id="posChart" height="150" class="mb-3"></canvas>
+        <div class="table-responsive">
+          <table class="table table-sm table-borderless mb-0">
+            <tbody>
+              <tr><td class="text-muted small">Perplexity</td><td class="text-end fw-bold">{{ "%.2f"|format(complexity.get('perplexity',0)) }}</td></tr>
+              <tr><td class="text-muted small">Ambiguity Score</td><td class="text-end fw-bold">{{ "%.4f"|format(complexity.get('ambiguity_score',0)) }}</td></tr>
+              <tr><td class="text-muted small">Lexical Diversity</td><td class="text-end fw-bold">{{ "%.4f"|format(complexity.get('lexical_diversity',0)) }}</td></tr>
+              <tr><td class="text-muted small">Vocab Reduction</td><td class="text-end fw-bold">{{ "%.1f"|format(complexity.get('vocabulary_reduction_pct',0)) }}%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 4: Pipeline Visualization ─────────────────────────────────── -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="ri-card p-4">
+        <div class="section-header">
+          <i class="bi bi-diagram-3-fill"></i>
+          <h4>NLP Pipeline Visualization</h4>
+          <span class="badge bg-success ms-auto">{{ pipeline | selectattr('completed') | list | length }} / {{ pipeline | length }} Phases Complete</span>
+        </div>
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-5 row-cols-lg-9 g-2">
+          {% for step in pipeline %}
+          <div class="col text-center">
+            <div class="pipeline-step flex-column align-items-center gap-1">
+              <div class="step-dot {% if step.completed %}done{% else %}pending{% endif %}">
+                <i class="bi {{ step.icon }}"></i>
+              </div>
+              <div class="small fw-bold" style="font-size:.7rem;line-height:1.2;">{{ step.phase }}</div>
+              {% if step.timestamp %}
+              <div class="text-muted" style="font-size:.62rem;">{{ step.timestamp[11:16] }}</div>
+              {% else %}
+              <div class="text-muted" style="font-size:.62rem;">Pending</div>
+              {% endif %}
+              {% if step.completed %}
+                <span class="badge bg-success" style="font-size:.6rem;">Done</span>
+              {% else %}
+                <span class="badge bg-secondary" style="font-size:.6rem;">—</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Timeline chart -->
+        <div class="mt-4">
+          <canvas id="timelineChart" height="60"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 5: XAI Explainability Panel ───────────────────────────────── -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="ri-card p-4">
+        <div class="section-header">
+          <i class="bi bi-shield-check-fill"></i>
+          <h4>Explainability Panel</h4>
+          <span class="badge bg-warning text-dark ms-auto">XAI</span>
+        </div>
+        <p class="text-muted small mb-3">Every metric below is transparently explained: what it measures, how it was computed, and which pipeline phase produced it.</p>
+
+        {% for key, explanation in health.get('explanations', {}).items() %}
+        <details class="xai-item">
+          <summary>
+            <i class="bi bi-question-circle me-2 text-info"></i>
+            {{ key.replace('_',' ').title() }}
+            <span class="badge bg-primary ms-2">{{ health.get('subscores',{}).get(key,'—') }} / 100</span>
+          </summary>
+          <div class="xai-body">{{ explanation }}</div>
+        </details>
+        {% endfor %}
+
+        <!-- Readability explanation -->
+        <details class="xai-item">
+          <summary><i class="bi bi-question-circle me-2 text-warning"></i>Readability Classification</summary>
+          <div class="xai-body">{{ readability.get('explanation','') }}</div>
+        </details>
+
+        <!-- Complexity explanations -->
+        {% for key, explanation in complexity.get('explanations', {}).items() if key != 'pos_distribution' %}
+        <details class="xai-item">
+          <summary><i class="bi bi-question-circle me-2 text-success"></i>{{ key.replace('_',' ').title() }}</summary>
+          <div class="xai-body">{{ explanation }}</div>
+        </details>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ── Inject data for charts ────────────────────────────────────────── -->
+<script>
+const DASH = {
+  health: {{ health | tojson }},
+  insights: {{ insights | tojson }},
+  entities: {{ entities | tojson }},
+  complexity: {{ complexity | tojson }},
+  pipeline: {{ pipeline | tojson }},
+};
+const DOC_ID = {{ document.id }};
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Health Score Radar ─────────────────────────────────────────────────────
+(function(){
+  const sub = DASH.health.subscores || {};
+  const labels = Object.keys(sub).map(k => k.replace(/_/g,' ').replace(/\b\w/g, c=>c.toUpperCase()));
+  const data   = Object.values(sub);
+  new Chart(document.getElementById('healthRadar').getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Health Subscores',
+        data,
+        backgroundColor: 'rgba(124,58,237,0.25)',
+        borderColor: '#7c3aed',
+        pointBackgroundColor: '#7c3aed',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.08)' }, pointLabels: { color: '#94a3b8', font: { size: 9 } } } },
+    }
+  });
+})();
+
+// ── Keyword Importance Bar ─────────────────────────────────────────────────
+(function(){
+  const kws = (DASH.insights.top_keywords || []).slice(0, 10);
+  new Chart(document.getElementById('keywordChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: kws.map(k => k.keyword),
+      datasets: [{ label: 'Score', data: kws.map(k => k.score), backgroundColor: 'rgba(6,182,212,0.5)', borderColor: '#06b6d4', borderWidth: 1 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: 'rgba(255,255,255,0.06)' } }, y: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } } }
+    }
+  });
+})();
+
+// ── Entity Distribution Doughnut ───────────────────────────────────────────
+(function(){
+  const dist = DASH.entities.distribution || {};
+  const COLORS = ['#7c3aed','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16'];
+  new Chart(document.getElementById('entityChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(dist),
+      datasets: [{ data: Object.values(dist), backgroundColor: COLORS, borderWidth: 2, borderColor: '#0f172a' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+    }
+  });
+})();
+
+// ── Topic Distribution Polar Area ──────────────────────────────────────────
+(function(){
+  const topics = DASH.insights.topics || [];
+  const COLORS = ['rgba(124,58,237,0.6)','rgba(6,182,212,0.6)','rgba(16,185,129,0.6)','rgba(245,158,11,0.6)','rgba(239,68,68,0.6)','rgba(139,92,246,0.6)'];
+  new Chart(document.getElementById('topicChart').getContext('2d'), {
+    type: 'polarArea',
+    data: {
+      labels: topics.map(t => t.name),
+      datasets: [{ data: topics.map(t => t.importance), backgroundColor: COLORS, borderWidth: 1, borderColor: '#1e1b4b' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.06)' } } }
+    }
+  });
+})();
+
+// ── POS Distribution Doughnut ──────────────────────────────────────────────
+(function(){
+  const pos = DASH.complexity.pos_distribution || {};
+  const COLORS = ['#7c3aed','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+  new Chart(document.getElementById('posChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(pos),
+      datasets: [{ data: Object.values(pos), backgroundColor: COLORS, borderWidth: 2, borderColor: '#0f172a' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } } }
+    }
+  });
+})();
+
+// ── Pipeline Timeline Chart ────────────────────────────────────────────────
+(function(){
+  const steps = DASH.pipeline || [];
+  const labels = steps.map(s => s.phase);
+  const completed = steps.map(s => s.completed ? 1 : 0);
+  new Chart(document.getElementById('timelineChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Completed',
+        data: completed,
+        backgroundColor: steps.map(s => s.completed ? 'rgba(16,185,129,0.7)' : 'rgba(55,65,81,0.7)'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+        y: { display: false, max: 1.2 }
+      }
+    }
+  });
+})();
+
+// ── Export JSON ────────────────────────────────────────────────────────────
+async function exportJSON(docId) {
+  try {
+    const res = await fetch(`/api/export-report/${docId}`, { method: 'POST' });
+    if (!res.ok) { alert('Export failed.'); return; }
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `researchiq_report_doc${docId}.json`;
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { alert('Export error: ' + e.message); }
+}
+</script>
+{% endblock %}

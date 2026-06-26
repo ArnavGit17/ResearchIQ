@@ -465,7 +465,7 @@
 {% endif %}{# end sem_result #}
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 {% if document and sem_result %}
 <script>
 const _pairs = {{ sem_result.semantic_pairs_json | safe if sem_result.semantic_pairs_json else "[]" }};

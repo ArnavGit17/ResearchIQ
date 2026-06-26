@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Batch Analysis{% endblock %}
+{% block breadcrumb %}Batch Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+  .batch-table th { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
+  .grade-pill { display: inline-block; padding: .2rem .5rem; border-radius: 20px; font-size: .7rem; font-weight: 700; }
+  .grade-Excellent { background: rgba(16,185,129,.2); color: #10b981; border: 1px solid #10b981; }
+  .grade-Good { background: rgba(6,182,212,.2); color: #06b6d4; border: 1px solid #06b6d4; }
+  .grade-Fair { background: rgba(245,158,11,.2); color: #f59e0b; border: 1px solid #f59e0b; }
+  .grade-default { background: rgba(239,68,68,.2); color: #ef4444; border: 1px solid #ef4444; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-2">
+  <div class="d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-collection fs-3 text-primary"></i>
+    <h2 class="mb-0 fw-bold">Batch Analysis</h2>
+    <span class="badge bg-secondary ms-2">{{ rows | length }} Documents</span>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn btn-sm btn-outline-info" onclick="exportBatch()">
+        <i class="bi bi-download me-1"></i>Export All (JSON)
+      </button>
+      <a href="{{ url_for('dashboard.compare') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-layout-split me-1"></i>Compare
+      </a>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="card shadow border-0" style="background:rgba(30,27,75,0.5);backdrop-filter:blur(16px);border:1px solid rgba(124,58,237,.25) !important;border-radius:16px;">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 batch-table">
+          <thead>
+            <tr>
+              <th class="ps-4">Document</th>
+              <th>Words</th>
+              <th>Reading Time</th>
+              <th>Difficulty</th>
+              <th>Health Score</th>
+              <th>Grade</th>
+              <th>Status</th>
+              <th class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td class="ps-4">
+                <div class="fw-bold">{{ row.filename | truncate(35) }}</div>
+                <div class="small text-muted">Doc #{{ row.doc_id }}</div>
+              </td>
+              <td>{{ row.words | int }}</td>
+              <td>{{ row.reading_time_min }} min</td>
+              <td>
+                {% if row.difficulty == 'Easy' %}
+                  <span class="badge bg-success">Easy</span>
+                {% elif row.difficulty == 'Medium' %}
+                  <span class="badge bg-warning text-dark">Medium</span>
+                {% elif row.difficulty == 'Hard' %}
+                  <span class="badge bg-danger">Hard</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ row.difficulty }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.health_score != 'N/A' %}
+                <div class="d-flex align-items-center gap-2">
+                  <div style="width:60px;height:8px;background:#1e1b4b;border-radius:4px;overflow:hidden;">
+                    <div style="width:{{ row.health_score }}%;height:100%;background:linear-gradient(90deg,#7c3aed,#06b6d4);border-radius:4px;"></div>
+                  </div>
+                  <span class="fw-bold">{{ row.health_score }}</span>
+                </div>
+                {% else %}
+                <span class="text-muted small">Not analyzed</span>
+                {% endif %}
+              </td>
+              <td>
+                {% set grade = row.health_grade %}
+                <span class="grade-pill grade-{{ grade if grade in ['Excellent','Good','Fair'] else 'default' }}">
+                  {{ grade }}
+                </span>
+              </td>
+              <td>
+                {% if row.has_dashboard %}
+                  <span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Ready</span>
+                {% else %}
+                  <span class="badge bg-secondary">Pending</span>
+                {% endif %}
+              </td>
+              <td class="text-end pe-4">
+                <a href="{{ url_for('dashboard.research_intelligence', document_id=row.doc_id) }}"
+                   class="btn btn-xs btn-outline-primary btn-sm">
+                  <i class="bi bi-eye me-1"></i>View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Charts -->
+  <div class="row g-3 mt-3">
+    <div class="col-md-6">
+      <div class="card border-0 p-3" style="background:rgba(30,27,75,0.5);backdrop-filter:blur(16px);border:1px solid rgba(124,58,237,.25) !important;border-radius:16px;">
+        <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart-fill text-primary me-2"></i>Health Scores by Document</h6>
+        <canvas id="batchHealthChart" height="180"></canvas>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 p-3" style="background:rgba(30,27,75,0.5);backdrop-filter:blur(16px);border:1px solid rgba(124,58,237,.25) !important;border-radius:16px;">
+        <h6 class="fw-bold mb-3"><i class="bi bi-speedometer2 text-warning me-2"></i>Difficulty Distribution</h6>
+        <canvas id="batchDiffChart" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>No documents found. <a href="{{ url_for('upload.index') }}">Upload a document</a> to get started.
+  </div>
+  {% endif %}
+</div>
+
+<script>
+const BATCH_ROWS = {{ rows | tojson }};
+(function(){
+  // Health score bar chart
+  const analyzed = BATCH_ROWS.filter(r => r.health_score !== 'N/A');
+  if (analyzed.length > 0) {
+    new Chart(document.getElementById('batchHealthChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: analyzed.map(r => r.filename.substring(0,18) + (r.filename.length>18?'...':'')),
+        datasets: [{
+          label: 'Health Score',
+          data: analyzed.map(r => r.health_score),
+          backgroundColor: analyzed.map(r => r.health_score >= 80 ? 'rgba(16,185,129,0.7)' : r.health_score >= 50 ? 'rgba(6,182,212,0.7)' : 'rgba(239,68,68,0.7)'),
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8' } },
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+        }
+      }
+    });
+  }
+
+  // Difficulty distribution doughnut
+  const diffCounts = {};
+  BATCH_ROWS.forEach(r => {
+    const d = r.difficulty || 'N/A';
+    diffCounts[d] = (diffCounts[d] || 0) + 1;
+  });
+  new Chart(document.getElementById('batchDiffChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(diffCounts),
+      datasets: [{
+        data: Object.values(diffCounts),
+        backgroundColor: Object.keys(diffCounts).map(k => k==='Easy'?'rgba(16,185,129,0.7)':k==='Medium'?'rgba(245,158,11,0.7)':k==='Hard'?'rgba(239,68,68,0.7)':'rgba(107,114,128,0.7)'),
+        borderColor: '#0f172a', borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8' } } }
+    }
+  });
+})();
+
+async function exportBatch() {
+  try {
+    const res = await fetch('/api/batch-summary');
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'researchiq_batch_analysis.json';
+    a.click(); URL.revokeObjectURL(url);
+  } catch(e) { alert('Export error: ' + e.message); }
+}
+</script>
+{% endblock %}

@@ -14,8 +14,10 @@ from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
 from models.semantic import SemanticAnalysisResult
-from models.pragmatic import PragmaticAnalysisResult
+from models.application import ApplicationAnalysisResult
 from services.nlp_pipeline import NLPPipeline
+from services.question_answering_service import QAService
+from services.search_service import SemanticSearchService
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -293,3 +295,146 @@ def get_semantic(document_id: int):
         "processed_at":         sem.processed_at.isoformat() if sem.processed_at else None,
     })
 
+
+@api_bp.route("/pragmatic/<int:document_id>", methods=["POST"])
+@login_required
+def run_pragmatic(document_id: int):
+    """Run Pragmatic Analysis (Phase 8) on a document."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    success = NLPPipeline.run_pragmatic_analysis(document_id)
+
+    if success:
+        return jsonify({"status": "success", "message": "Pragmatic analysis completed"}), 200
+    else:
+        return jsonify({"error": "Failed. Ensure previous phases are complete."}), 500
+
+
+@api_bp.route("/applications/<int:document_id>", methods=["POST"])
+@login_required
+def run_applications(document_id: int):
+    """Run Applications Analysis (Phase 9A) on a document."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    success = NLPPipeline.run_application_analysis(document_id)
+
+    if success:
+        return jsonify({"status": "success", "message": "Applications analysis completed"}), 200
+    else:
+        return jsonify({"error": "Failed. Ensure previous phases are complete."}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 9B: Research Intelligence Dashboard API
+# ─────────────────────────────────────────────────────────────────────────────
+
+from models.research_dashboard import ResearchDashboardResult
+from services.dashboard_service import DashboardService
+
+
+@api_bp.route("/research-dashboard/<int:document_id>", methods=["GET"])
+@login_required
+def api_research_dashboard(document_id: int):
+    """GET: Return complete aggregated Research Intelligence data for a document."""
+    doc = db.session.get(Document, document_id)
+    if not doc or doc.user_id != current_user.id:
+        return jsonify({"error": "Document not found"}), 404
+
+    dash = DashboardService.build(document_id)
+    if not dash:
+        return jsonify({"error": "Failed to build dashboard — ensure earlier pipeline phases have run."}), 500
+
+    def sj(field):
+        val = getattr(dash, field, None)
+        if not val:
+            return {}
+        try:
+            return json.loads(val)
+        except Exception:
+            return {}
+
+    return jsonify({
+        "document_id": document_id,
+        "overview": sj("document_overview_json"),
+        "health_score": sj("health_score_json"),
+        "readability": sj("readability_json"),
+        "complexity": sj("complexity_json"),
+        "research_insights": sj("research_insights_json"),
+        "entity_intelligence": sj("entity_intelligence_json"),
+        "executive_summary": sj("executive_summary_json"),
+        "pipeline_timeline": json.loads(dash.pipeline_timeline_json) if dash.pipeline_timeline_json else [],
+        "processed_at": dash.processed_at.isoformat() if dash.processed_at else None,
+    }), 200
+
+
+@api_bp.route("/document-comparison", methods=["GET"])
+@login_required
+def api_document_comparison():
+    """GET: Compare two documents side-by-side. Query params: doc1=<id>&doc2=<id>"""
+    doc1_id = request.args.get("doc1", type=int)
+    doc2_id = request.args.get("doc2", type=int)
+
+    if not doc1_id or not doc2_id:
+        return jsonify({"error": "Provide both doc1 and doc2 query parameters."}), 400
+
+    # Security: ensure both docs belong to current user
+    for did in [doc1_id, doc2_id]:
+        doc = db.session.get(Document, did)
+        if not doc or doc.user_id != current_user.id:
+            return jsonify({"error": f"Document {did} not found."}), 404
+
+    result = DashboardService.compare_documents(doc1_id, doc2_id)
+    return jsonify(result), 200
+
+
+@api_bp.route("/export-report/<int:document_id>", methods=["POST"])
+@login_required
+def api_export_report(document_id: int):
+    """POST: Return full JSON export of all dashboard data for a document."""
+    doc = db.session.get(Document, document_id)
+    if not doc or doc.user_id != current_user.id:
+        return jsonify({"error": "Document not found"}), 404
+
+    dash = ResearchDashboardResult.query.filter_by(document_id=document_id).first()
+    if not dash:
+        # Try to build it
+        dash = DashboardService.build(document_id)
+    if not dash:
+        return jsonify({"error": "No dashboard data available."}), 404
+
+    def sj(field):
+        val = getattr(dash, field, None)
+        try:
+            return json.loads(val) if val else {}
+        except Exception:
+            return {}
+
+    export_data = {
+        "meta": {
+            "document": doc.original_filename,
+            "exported_at": dash.processed_at.isoformat() if dash.processed_at else None,
+            "platform": "ResearchIQ",
+        },
+        "overview": sj("document_overview_json"),
+        "executive_summary": sj("executive_summary_json"),
+        "health_score": sj("health_score_json"),
+        "readability": sj("readability_json"),
+        "complexity": sj("complexity_json"),
+        "research_insights": sj("research_insights_json"),
+        "entity_intelligence": sj("entity_intelligence_json"),
+        "pipeline_timeline": json.loads(dash.pipeline_timeline_json) if dash.pipeline_timeline_json else [],
+    }
+
+    return jsonify(export_data), 200
+
+
+@api_bp.route("/batch-summary", methods=["GET"])
+@login_required
+def api_batch_summary():
+    """GET: Return batch summary for all user documents."""
+    rows = DashboardService.batch_summary(current_user.id)
+    return jsonify({"documents": rows, "total": len(rows)}), 200

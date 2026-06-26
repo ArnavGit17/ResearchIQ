@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Preview: {{ document.original_filename }} - ResearchIQ{% endblock %}
 
@@ -11,26 +11,38 @@
             <a href="{{ url_for('document_bp.index') }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Documents
             </a>
-            <div class="d-flex gap-2">
-                <button id="btn-analyze" class="btn btn-primary" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+            <div class="d-flex flex-wrap gap-2">
+                <button id="btn-analyze" class="btn btn-primary btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
                     <i class="bi bi-lightning-charge" id="btn-analyze-icon"></i> 
                     <span id="btn-analyze-text">Run Preprocessing</span>
                 </button>
-                <button id="btn-morphology" class="btn btn-info text-white" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                <button id="btn-morphology" class="btn btn-info text-white btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
                     <i class="bi bi-diagram-2" id="btn-morphology-icon"></i> 
                     <span id="btn-morphology-text">Run Morphological Analysis</span>
                 </button>
-                <button id="btn-statistical" class="btn btn-warning text-dark" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                <button id="btn-statistical" class="btn btn-warning text-dark btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
                     <i class="bi bi-graph-up" id="btn-statistical-icon"></i>
                     <span id="btn-statistical-text">Run Statistical NLP</span>
                 </button>
-                <button id="btn-syntax" class="btn btn-success text-white" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                <button id="btn-syntax" class="btn btn-success text-white btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
                     <i class="bi bi-diagram-3" id="btn-syntax-icon"></i>
                     <span id="btn-syntax-text">Run Syntax Analysis</span>
                 </button>
-                <button id="btn-semantic" class="btn btn-danger text-white mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                <button id="btn-semantic" class="btn btn-danger text-white btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
                     <i class="bi bi-bezier2" id="btn-semantic-icon"></i>
                     <span id="btn-semantic-text">Run Semantic Analysis</span>
+                </button>
+                <button id="btn-pragmatic" class="btn btn-secondary text-white btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-chat-quote" id="btn-pragmatic-icon"></i>
+                    <span id="btn-pragmatic-text">Run Pragmatic Analysis</span>
+                </button>
+                <button id="btn-applications" class="btn btn-dark text-white btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-robot" id="btn-applications-icon"></i>
+                    <span id="btn-applications-text">Applications</span>
+                </button>
+                <button id="btn-dashboard" class="btn btn-primary text-white btn-sm mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-grid" id="btn-dashboard-icon"></i>
+                    <span id="btn-dashboard-text">Dashboard</span>
                 </button>
             </div>
         </div>
@@ -124,246 +136,123 @@
     </div>
 </div>
 {% endblock %}
-
-{% block scripts %}
+{% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const btnAnalyze = document.getElementById('btn-analyze');
-    if (!btnAnalyze) return;
-    
-    btnAnalyze.addEventListener('click', async function() {
-        const docId = this.getAttribute('data-doc-id');
-        const icon = document.getElementById('btn-analyze-icon');
-        const text = document.getElementById('btn-analyze-text');
-        
-        // Update UI state
-        btnAnalyze.disabled = true;
-        icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm';
-        text.innerText = ' Processing...';
-        
-        try {
-            // Include CSRF token in header
-            const csrfToken = '{{ csrf_token() }}';
-            
-            const response = await fetch(`/api/preprocess/${docId}`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                // Success: Redirect to NLP Lab
-                window.location.href = `{{ url_for('nlp.laboratory') }}?doc=${docId}`;
-            } else {
-                // Error
-                alert(data.error || 'An error occurred during processing.');
-                resetBtn();
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Failed to connect to the server.');
-            resetBtn();
+(function () {
+  'use strict';
+
+  function getCsrf() {
+    var m = document.querySelector('meta[name="csrf-token"]');
+    return m ? m.getAttribute('content') : '';
+  }
+
+  async function runPipeline(btn, iconEl, textEl, steps, successUrl, resetLabel, resetIcon) {
+    btn.disabled = true;
+    var csrf = getCsrf();
+    try {
+      for (var i = 0; i < steps.length; i++) {
+        var step = steps[i];
+        iconEl.className = 'spinner-border spinner-border-sm me-1';
+        textEl.textContent = step.label;
+        var res = await fetch(step.url, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
+        });
+        if (!res.ok) {
+          var errMsg = 'Step failed: ' + step.label;
+          try { var d = await res.json(); errMsg = d.error || errMsg; } catch (e) {}
+          throw new Error(errMsg);
         }
-        
-        function resetBtn() {
-            btnAnalyze.disabled = false;
-            icon.className = 'bi bi-lightning-charge';
-            text.innerText = ' Run Preprocessing';
-        }
+      }
+      window.location.href = successUrl;
+    } catch (err) {
+      console.error('[ResearchIQ] Pipeline error:', err);
+      alert(err.message || 'An error occurred. Check the console.');
+      btn.disabled = false;
+      iconEl.className = resetIcon;
+      textEl.textContent = resetLabel;
+    }
+  }
+
+  function attachBtn(id, iconId, textId, stepTemplates, redirectUrl, resetLabel, resetIconClass) {
+    var btn  = document.getElementById(id);
+    var icon = document.getElementById(iconId);
+    var text = document.getElementById(textId);
+    if (!btn) { console.warn('[ResearchIQ] Button not found: ' + id); return; }
+    btn.addEventListener('click', function () {
+      var docId = btn.getAttribute('data-doc-id');
+      var steps = stepTemplates.map(function (s) {
+        return { url: s.url.replace('{docId}', docId), label: s.label };
+      });
+      var url = redirectUrl.replace('{docId}', docId);
+      runPipeline(btn, icon, text, steps, url, resetLabel, resetIconClass);
     });
+  }
 
-    const btnMorphology = document.getElementById('btn-morphology');
-    if (btnMorphology) {
-        btnMorphology.addEventListener('click', async function() {
-            const docId = this.getAttribute('data-doc-id');
-            const icon = document.getElementById('btn-morphology-icon');
-            const text = document.getElementById('btn-morphology-text');
-            
-            // First run preprocessing, then morphology as requested by the flow
-            btnMorphology.disabled = true;
-            icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm';
-            text.innerText = ' Preprocessing...';
-            
-            try {
-                const csrfToken = '{{ csrf_token() }}';
-                
-                // 1. Run Preprocessing
-                const prepResponse = await fetch(`/api/preprocess/${docId}`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!prepResponse.ok) {
-                    const data = await prepResponse.json();
-                    throw new Error(data.error || 'Preprocessing failed.');
-                }
-                
-                // 2. Run Morphology
-                text.innerText = ' Analyzing Morphology...';
-                const morphResponse = await fetch(`/api/morphology/${docId}`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const data = await morphResponse.json();
-                
-                if (morphResponse.ok) {
-                    // Success: Redirect to Morphology Dashboard
-                    window.location.href = `{{ url_for('nlp.morphology') }}?doc=${docId}`;
-                } else {
-                    // Error
-                    alert(data.error || 'An error occurred during morphological analysis.');
-                    resetBtnMorph();
-                }
-            } catch (err) {
-                console.error(err);
-                alert(err.message || 'Failed to connect to the server.');
-                resetBtnMorph();
-            }
-            
-            function resetBtnMorph() {
-                btnMorphology.disabled = false;
-                icon.className = 'bi bi-diagram-2';
-                text.innerText = ' Run Morphological Analysis';
-            }
-        });
-    }
+  document.addEventListener('DOMContentLoaded', function () {
+    console.log('[ResearchIQ] Preview page JS initializing...');
 
-    // ── Statistical NLP button ───────────────────────────────────────────────
-    const btnStat = document.getElementById('btn-statistical');
-    if (btnStat) {
-        btnStat.addEventListener('click', async function() {
-            const docId = this.getAttribute('data-doc-id');
-            const icon  = document.getElementById('btn-statistical-icon');
-            const text  = document.getElementById('btn-statistical-text');
-            const csrf  = '{{ csrf_token() }}';
+    attachBtn('btn-analyze','btn-analyze-icon','btn-analyze-text',
+      [{ url:'/api/preprocess/{docId}', label:'Preprocessing...' }],
+      '/nlp/laboratory?doc={docId}', 'Run Preprocessing', 'bi bi-lightning-charge');
 
-            btnStat.disabled = true;
+    attachBtn('btn-morphology','btn-morphology-icon','btn-morphology-text',
+      [{ url:'/api/preprocess/{docId}', label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}', label:'Morphological Analysis...' }],
+      '/nlp/morphology?doc={docId}', 'Run Morphological Analysis', 'bi bi-diagram-2');
 
-            const steps = [
-                { url: `/api/preprocess/${docId}`,  label: 'Preprocessing…' },
-                { url: `/api/morphology/${docId}`,   label: 'Morphology…'    },
-                { url: `/api/statistical/${docId}`,  label: 'Statistical NLP…' },
-            ];
+    attachBtn('btn-statistical','btn-statistical-icon','btn-statistical-text',
+      [{ url:'/api/preprocess/{docId}',  label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}',  label:'Morphology...' },
+       { url:'/api/statistical/{docId}', label:'Statistical NLP...' }],
+      '/nlp/statistical-nlp?doc={docId}', 'Run Statistical NLP', 'bi bi-graph-up');
 
-            try {
-                for (const step of steps) {
-                    icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
-                    text.innerText = step.label;
-                    const res = await fetch(step.url, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
-                    });
-                    if (!res.ok) {
-                        const d = await res.json();
-                        throw new Error(d.error || `Step failed: ${step.label}`);
-                    }
-                }
-                window.location.href = `{{ url_for('nlp.statistical_nlp') }}?doc=${docId}`;
-            } catch (err) {
-                console.error(err);
-                alert(err.message || 'Statistical NLP failed. See console for details.');
-                btnStat.disabled = false;
-                icon.className = 'bi bi-graph-up';
-                text.innerText = 'Run Statistical NLP';
-            }
-        });
-    }
+    attachBtn('btn-syntax','btn-syntax-icon','btn-syntax-text',
+      [{ url:'/api/preprocess/{docId}',  label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}',  label:'Morphology...' },
+       { url:'/api/statistical/{docId}', label:'Statistical NLP...' },
+       { url:'/api/syntax/{docId}',      label:'Syntax Analysis...' }],
+      '/nlp/syntax?doc={docId}', 'Run Syntax Analysis', 'bi bi-diagram-3');
 
-    // ── Syntax Analysis button ───────────────────────────────────────────────
-    const btnSyn = document.getElementById('btn-syntax');
-    if (btnSyn) {
-        btnSyn.addEventListener('click', async function() {
-            const docId = this.getAttribute('data-doc-id');
-            const icon  = document.getElementById('btn-syntax-icon');
-            const text  = document.getElementById('btn-syntax-text');
-            const csrf  = '{{ csrf_token() }}';
+    attachBtn('btn-semantic','btn-semantic-icon','btn-semantic-text',
+      [{ url:'/api/preprocess/{docId}',  label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}',  label:'Morphology...' },
+       { url:'/api/statistical/{docId}', label:'Statistical NLP...' },
+       { url:'/api/syntax/{docId}',      label:'Syntax Analysis...' },
+       { url:'/api/semantic/{docId}',    label:'Semantic Analysis...' }],
+      '/nlp/semantic?doc={docId}', 'Run Semantic Analysis', 'bi bi-bezier2');
 
-            btnSyn.disabled = true;
+    attachBtn('btn-pragmatic','btn-pragmatic-icon','btn-pragmatic-text',
+      [{ url:'/api/preprocess/{docId}',  label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}',  label:'Morphology...' },
+       { url:'/api/statistical/{docId}', label:'Statistical NLP...' },
+       { url:'/api/syntax/{docId}',      label:'Syntax Analysis...' },
+       { url:'/api/semantic/{docId}',    label:'Semantic Analysis...' },
+       { url:'/api/pragmatic/{docId}',   label:'Pragmatic Analysis...' }],
+      '/nlp/pragmatic?doc={docId}', 'Run Pragmatic Analysis', 'bi bi-chat-quote');
 
-            const steps = [
-                { url: `/api/preprocess/${docId}`,  label: 'Preprocessing…' },
-                { url: `/api/morphology/${docId}`,   label: 'Morphology…'    },
-                { url: `/api/statistical/${docId}`,  label: 'Statistical NLP…' },
-                { url: `/api/syntax/${docId}`,       label: 'Syntax Analysis…' },
-            ];
+    attachBtn('btn-applications','btn-applications-icon','btn-applications-text',
+      [{ url:'/api/preprocess/{docId}',   label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}',   label:'Morphology...' },
+       { url:'/api/statistical/{docId}',  label:'Statistical NLP...' },
+       { url:'/api/syntax/{docId}',       label:'Syntax Analysis...' },
+       { url:'/api/semantic/{docId}',     label:'Semantic Analysis...' },
+       { url:'/api/pragmatic/{docId}',    label:'Pragmatic Analysis...' },
+       { url:'/api/applications/{docId}', label:'Applications...' }],
+      '/nlp/applications?doc={docId}', 'Applications', 'bi bi-robot');
 
-            try {
-                for (const step of steps) {
-                    icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
-                    text.innerText = step.label;
-                    const res = await fetch(step.url, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
-                    });
-                    if (!res.ok) {
-                        const d = await res.json();
-                        throw new Error(d.error || `Step failed: ${step.label}`);
-                    }
-                }
-                window.location.href = `{{ url_for('nlp.syntax') }}?doc=${docId}`;
-            } catch (err) {
-                console.error(err);
-                alert(err.message || 'Syntax Analysis failed. See console for details.');
-                btnSyn.disabled = false;
-                icon.className = 'bi bi-diagram-3';
-                text.innerText = 'Run Syntax Analysis';
-            }
-        });
-    }
-    // ── Semantic Analysis button ───────────────────────────────────────────────
-    const btnSem = document.getElementById('btn-semantic');
-    if (btnSem) {
-        btnSem.addEventListener('click', async function() {
-            const docId = this.getAttribute('data-doc-id');
-            const icon  = document.getElementById('btn-semantic-icon');
-            const text  = document.getElementById('btn-semantic-text');
-            const csrf  = '{{ csrf_token() }}';
+    attachBtn('btn-dashboard','btn-dashboard-icon','btn-dashboard-text',
+      [{ url:'/api/preprocess/{docId}',   label:'Preprocessing...' },
+       { url:'/api/morphology/{docId}',   label:'Morphology...' },
+       { url:'/api/statistical/{docId}',  label:'Statistical NLP...' },
+       { url:'/api/syntax/{docId}',       label:'Syntax Analysis...' },
+       { url:'/api/semantic/{docId}',     label:'Semantic Analysis...' },
+       { url:'/api/pragmatic/{docId}',    label:'Pragmatic Analysis...' },
+       { url:'/api/applications/{docId}', label:'Applications...' }],
+      '/dashboard/research/{docId}', 'Dashboard', 'bi bi-grid');
 
-            btnSem.disabled = true;
-
-            const steps = [
-                { url: `/api/preprocess/${docId}`,  label: 'Preprocessing…' },
-                { url: `/api/morphology/${docId}`,   label: 'Morphology…'    },
-                { url: `/api/statistical/${docId}`,  label: 'Statistical NLP…' },
-                { url: `/api/syntax/${docId}`,       label: 'Syntax Analysis…' },
-                { url: `/api/semantic/${docId}`,     label: 'Semantic Analysis…' },
-            ];
-
-            try {
-                for (const step of steps) {
-                    icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
-                    text.innerText = step.label;
-                    const res = await fetch(step.url, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
-                    });
-                    if (!res.ok) {
-                        const d = await res.json();
-                        throw new Error(d.error || `Step failed: ${step.label}`);
-                    }
-                }
-                window.location.href = `{{ url_for('nlp.semantic_nlp') }}?doc=${docId}`;
-            } catch (err) {
-                console.error(err);
-                alert(err.message || 'Semantic Analysis failed. See console for details.');
-                btnSem.disabled = false;
-                icon.className = 'bi bi-bezier2';
-                text.innerText = 'Run Semantic Analysis';
-            }
-        });
-    }
-});
+    console.log('[ResearchIQ] All 8 button listeners attached.');
+  });
+})();
 </script>
 {% endblock %}
-

@@ -81,6 +81,20 @@ def create_app(env: str | None = None) -> Flask:
     def server_error(e):
         return render_template("errors/500.html"), 500
 
+    # ── Register custom Jinja2 filters ────────────────────────────────────────
+    import json as _json
+
+    def _fromjson(value, default=None):
+        """Parse a JSON string into a Python object. Returns default on failure."""
+        if not value:
+            return default if default is not None else []
+        try:
+            return _json.loads(value)
+        except (ValueError, TypeError):
+            return default if default is not None else []
+
+    app.jinja_env.filters["fromjson"] = _fromjson
+
     # ── Create database tables ─────────────────────────────────────────────────
     with app.app_context():
         db.create_all()

@@ -21,7 +21,11 @@ from services.statistical_nlp_service import StatisticalNLPService
 from services.syntax_service import SyntaxService, HMMViterbiDemoService
 from services.semantic_service import SemanticService
 from models.pragmatic import PragmaticAnalysisResult
+from models.application import ApplicationAnalysisResult
 from services.pragmatic_service import PragmaticService
+from services.ner_service import NERService
+from services.keyword_service import KeywordService
+from services.summarization_service import SummarizationService
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +359,54 @@ class NLPPipeline:
             return False
 
     @staticmethod
+    def run_application_analysis(document_id: int) -> bool:
+        """Runs Phase 9A Application Analysis for a document."""
+        logger.info(f"Starting Application Analysis for Document {document_id}")
+        
+        document = db.session.get(Document, document_id)
+        if not document or not document.cleaned_text:
+            logger.error(f"Cannot run applications: Document not found or empty.")
+            return False
+
+        # Load necessary phase results
+        prep = PreprocessingResult.query.filter_by(document_id=document_id).first()
+        stat = StatisticalAnalysisResult.query.filter_by(document_id=document_id).first()
+        syn = SyntaxAnalysisResult.query.filter_by(document_id=document_id).first()
+
+        try:
+            sentences = json.loads(prep.sentences_json) if prep and prep.sentences_json else []
+            tf_idf_data = json.loads(stat.tfidf_json) if stat and stat.tfidf_json else {}
+            pos_tags = json.loads(syn.pos_tags_json) if syn and syn.pos_tags_json else []
+
+            # 1. NER
+            ner_results = NERService.extract_entities(document.cleaned_text)
+            
+            # 2. Keywords
+            keyword_results = KeywordService.extract_keywords(tf_idf_data, pos_tags)
+            
+            # 3. Summarization
+            summary_results = SummarizationService.generate_summary(sentences, keyword_results, ner_results.get("entities", []))
+
+            app_result = ApplicationAnalysisResult.query.filter_by(document_id=document_id).first()
+            if not app_result:
+                app_result = ApplicationAnalysisResult(document_id=document_id)
+                db.session.add(app_result)
+
+            app_result.entities_json = json.dumps(ner_results)
+            app_result.keywords_json = json.dumps(keyword_results)
+            app_result.summary_json = json.dumps(summary_results)
+            app_result.processed_at = datetime.now(timezone.utc)
+
+            db.session.commit()
+            logger.info(f"Successfully ran application analysis for Document {document_id}")
+            return True
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.exception(f"Failed to run application analysis for Document {document_id}: {str(e)}")
+            return False
+
+    @staticmethod
     def run_all(document_id: int) -> bool:
         """
         Run the complete NLP pipeline (Preprocessing + Future Phases).
@@ -380,6 +432,10 @@ class NLPPipeline:
             logger.warning(f"Semantic NLP failed for Document {document_id} – continuing pipeline")
         
         # Step 6: Pragmatic (Phase 8)
-        NLPPipeline.run_pragmatic_analysis(document_id)
+        if not NLPPipeline.run_pragmatic_analysis(document_id):
+            logger.warning(f"Pragmatic NLP failed for Document {document_id} – continuing pipeline")
+            
+        # Step 7: Applications (Phase 9A)
+        NLPPipeline.run_application_analysis(document_id)
         
         return True

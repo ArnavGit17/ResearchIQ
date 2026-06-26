@@ -10,17 +10,21 @@ from .statistical_nlp import StatisticalAnalysisResult
 from .syntax import SyntaxAnalysisResult
 from .semantic import SemanticAnalysisResult
 from .pragmatic import PragmaticAnalysisResult
+from .application import ApplicationAnalysisResult
+from .research_dashboard import ResearchDashboardResult
 
 __all__ = [
-    "User", 
-    "Document", 
-    "Analysis", 
-    "Question", 
-    "Summary", 
-    "PreprocessingResult", 
-    "MorphologyResult", 
-    "StatisticalAnalysisResult", 
+    "User",
+    "Document",
+    "Analysis",
+    "Question",
+    "Summary",
+    "PreprocessingResult",
+    "MorphologyResult",
+    "StatisticalAnalysisResult",
     "SyntaxAnalysisResult",
     "SemanticAnalysisResult",
-    "PragmaticAnalysisResult"
+    "PragmaticAnalysisResult",
+    "ApplicationAnalysisResult",
+    "ResearchDashboardResult",
 ]

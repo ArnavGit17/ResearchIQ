@@ -30,6 +30,7 @@
         </div>
 
         <form method="POST" action="{{ url_for('settings.index') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="hidden" name="action" value="update_profile" />
           <div class="riq-form-group">
             <label class="riq-label">Username</label>
@@ -62,6 +63,7 @@
       </div>
       <div class="riq-card-body">
         <form method="POST" action="{{ url_for('settings.index') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <input type="hidden" name="action" value="change_password" />
           <div class="riq-form-group">
             <label class="riq-label">Current Password</label>

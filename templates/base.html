@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="ResearchIQ – Explainable Multi-Level NLP Research Intelligence Platform" />
   <title>{% block title %}ResearchIQ{% endblock %} | ResearchIQ</title>
-
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -49,14 +49,14 @@
     </li>
 
     <li>
-      <a href="{{ url_for('document_bp.index') }}" class="sidebar-link {% if 'document' in request.endpoint %}active{% endif %}">
+      <a href="{{ url_for('document_bp.index') }}" class="sidebar-link {% if 'document' in (request.endpoint or '') %}active{% endif %}">
         <i class="bi bi-file-text-fill"></i>
         <span>Documents</span>
       </a>
     </li>
 
     <li>
-      <a href="{{ url_for('upload.index') }}" class="sidebar-link {% if 'upload' in request.endpoint %}active{% endif %}">
+      <a href="{{ url_for('upload.index') }}" class="sidebar-link {% if 'upload' in (request.endpoint or '') %}active{% endif %}">
         <i class="bi bi-cloud-arrow-up-fill"></i>
         <span>Upload Documents</span>
       </a>
@@ -95,7 +95,31 @@
       </a>
     </li>
 
-    <li class="nav-label mt-2">AI Features</li>
+    <li>
+      <a href="{{ url_for('nlp.applications') }}" class="sidebar-link {% if request.endpoint == 'nlp.applications' %}active{% endif %}">
+        <i class="bi bi-app-indicator"></i>
+        <span>Applications</span>
+        <span class="badge-done">✓</span>
+      </a>
+    </li>
+
+    <li class="nav-label mt-2">Research Intel</li>
+
+    <li>
+      <a href="{{ url_for('dashboard.batch') }}" class="sidebar-link {% if request.endpoint == 'dashboard.batch' %}active{% endif %}">
+        <i class="bi bi-collection-fill"></i>
+        <span>Batch Analysis</span>
+        <span class="badge-done">✓</span>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ url_for('dashboard.compare') }}" class="sidebar-link {% if request.endpoint == 'dashboard.compare' %}active{% endif %}">
+        <i class="bi bi-layout-split"></i>
+        <span>Compare Docs</span>
+        <span class="badge-done">✓</span>
+      </a>
+    </li>
 
     <li>
       <a href="{{ url_for('nlp.assistant') }}" class="sidebar-link {% if request.endpoint == 'nlp.assistant' %}active{% endif %}">
@@ -132,14 +156,14 @@
     <li class="nav-label mt-2">System</li>
 
     <li>
-      <a href="{{ url_for('analytics.index') }}" class="sidebar-link {% if 'analytics' in request.endpoint %}active{% endif %}">
+      <a href="{{ url_for('analytics.index') }}" class="sidebar-link {% if 'analytics' in (request.endpoint or '') %}active{% endif %}">
         <i class="bi bi-bar-chart-fill"></i>
         <span>Analytics</span>
       </a>
     </li>
 
     <li>
-      <a href="{{ url_for('settings.index') }}" class="sidebar-link {% if 'settings' in request.endpoint %}active{% endif %}">
+      <a href="{{ url_for('settings.index') }}" class="sidebar-link {% if 'settings' in (request.endpoint or '') %}active{% endif %}">
         <i class="bi bi-gear-fill"></i>
         <span>Settings</span>
       </a>

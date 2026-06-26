@@ -15,6 +15,7 @@ from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
 from models.semantic import SemanticAnalysisResult
 from models.pragmatic import PragmaticAnalysisResult
+from models.application import ApplicationAnalysisResult
 from services.syntax_service import HMMViterbiDemoService
 
 nlp_bp = Blueprint("nlp", __name__, url_prefix="/nlp")
@@ -165,6 +166,26 @@ def pragmatic():
         page="pragmatic",
         document=document,
         prag_result=prag_result
+    )
+
+
+@nlp_bp.route("/applications")
+@login_required
+def applications():
+    doc_id = request.args.get("doc")
+    document = None
+    app_result = None
+
+    if doc_id:
+        document = db.session.get(Document, doc_id)
+        if document and document.user_id == current_user.id:
+            app_result = ApplicationAnalysisResult.query.filter_by(document_id=doc_id).first()
+
+    return render_template(
+        "nlp/applications.html",
+        page="applications",
+        document=document,
+        app_result=app_result
     )
 
 

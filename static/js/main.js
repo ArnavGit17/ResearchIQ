@@ -12,6 +12,25 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ════════════════════════════════════════════════════════════
+   GLOBAL FETCH INTERCEPTOR (CSRF)
+   ═══════════════════════════════════════════════════════════ */
+const originalFetch = window.fetch;
+window.fetch = async function () {
+  let [resource, config] = arguments;
+  if (!config) config = {};
+  
+  // Inject CSRF for non-GET/HEAD methods
+  if (config.method && !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(config.method.toUpperCase())) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    if (csrfToken) {
+      if (!config.headers) config.headers = {};
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+  }
+  return originalFetch(resource, config);
+};
+
+/* ════════════════════════════════════════════════════════════
    THEME (Dark / Light)
    ═══════════════════════════════════════════════════════════ */
 function initTheme() {
