@@ -14,6 +14,7 @@ from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
 from models.semantic import SemanticAnalysisResult
+from models.pragmatic import PragmaticAnalysisResult
 from services.syntax_service import HMMViterbiDemoService
 
 nlp_bp = Blueprint("nlp", __name__, url_prefix="/nlp")
@@ -150,12 +151,21 @@ def semantic():
 @nlp_bp.route("/pragmatic")
 @login_required
 def pragmatic():
-    return render_template("nlp/placeholder.html",
-                           page="pragmatic",
-                           title="Pragmatic Analysis",
-                           icon="bi-chat-quote",
-                           description="Sentiment analysis, discourse analysis, and speech act detection.",
-                           status="Coming in Phase 2")
+    doc_id = request.args.get("doc")
+    document = None
+    prag_result = None
+
+    if doc_id:
+        document = db.session.get(Document, doc_id)
+        if document and document.user_id == current_user.id:
+            prag_result = PragmaticAnalysisResult.query.filter_by(document_id=doc_id).first()
+
+    return render_template(
+        "nlp/pragmatic.html",
+        page="pragmatic",
+        document=document,
+        prag_result=prag_result
+    )
 
 
 @nlp_bp.route("/assistant")

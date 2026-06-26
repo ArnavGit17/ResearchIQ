@@ -9,6 +9,7 @@ from .morphology import MorphologyResult
 from .statistical_nlp import StatisticalAnalysisResult
 from .syntax import SyntaxAnalysisResult
 from .semantic import SemanticAnalysisResult
+from .pragmatic import PragmaticAnalysisResult
 
 __all__ = [
     "User", 
@@ -20,5 +21,6 @@ __all__ = [
     "MorphologyResult", 
     "StatisticalAnalysisResult", 
     "SyntaxAnalysisResult",
-    "SemanticAnalysisResult"
+    "SemanticAnalysisResult",
+    "PragmaticAnalysisResult"
 ]

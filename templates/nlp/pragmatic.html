@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-chat-quote text-teal me-2"></i>Pragmatics & Discourse Intelligence</h2>
+            <p class="text-muted mb-0">Phase 8: Beyond the sentence – context, intent, and relationships</p>
+        </div>
+        <div>
+            <a href="{{ url_for('nlp.semantic', doc=document.id) }}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Previous Phase
+            </a>
+            <button class="btn btn-teal" onclick="runPragmatic()">
+                <i class="bi bi-play-fill"></i> Run Analysis
+            </button>
+        </div>
+    </div>
+
+    {% if prag_result %}
+    
+    <!-- 1. PRAGMATIC SUMMARY -->
+    <div class="card shadow-sm border-0 mb-4 border-top-teal">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-journal-text me-2"></i>Pragmatic Summary</h5>
+            <div class="row text-center mt-4" id="summaryContainer">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. VISUAL ANALYTICS (Charts) -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">A. Intent Distribution</h6>
+                    <canvas id="intentChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">B. Discourse Relations</h6>
+                    <canvas id="discourseChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">F. Confidence Scores</h6>
+                    <canvas id="confidenceChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">C. Entity Timeline Focus</h6>
+                    <canvas id="timelineChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">D. Context Networks (Top Entities)</h6>
+                    <canvas id="contextChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. EXPLAINABILITY PANELS -->
+    <h4 class="mb-3 mt-5"><i class="bi bi-search me-2"></i>Explainable AI Analysis</h4>
+    
+    <div class="row g-4">
+        <!-- Coreference -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title"><i class="bi bi-link-45deg text-primary me-2"></i>Coreference Resolution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead><tr><th>Pronoun</th><th>Resolved To</th><th>Explainability (Reason)</th></tr></thead>
+                            <tbody id="corefTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Discourse -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title"><i class="bi bi-signpost-split text-success me-2"></i>Discourse Markers</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead><tr><th>Marker</th><th>Relation</th><th>Explainability (Reason)</th></tr></thead>
+                            <tbody id="discourseTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-2">
+        <!-- Intents -->
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title"><i class="bi bi-bullseye text-danger me-2"></i>Intent Classification</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead><tr><th width="40%">Sentence</th><th>Intent</th><th>Explainability (Reason)</th></tr></thead>
+                            <tbody id="intentTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row g-4 mt-2 mb-5">
+        <!-- Ambiguity -->
+        <div class="col-md-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title"><i class="bi bi-lightbulb text-warning me-2"></i>E. Ambiguity Resolution (WSD Context)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead><tr><th>Ambiguous Word</th><th>Chosen Meaning</th><th>Explainability (Reason)</th></tr></thead>
+                            <tbody id="ambiguityTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="alert alert-info shadow-sm border-0">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Pragmatic Analysis has not been run for this document yet. Click 'Run Analysis' to begin.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Raw JSON Data Injection -->
+{% if prag_result %}
+<script>
+    const P_DATA = {
+        coreference: JSON.parse('{{ prag_result.coreference_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '[]'),
+        discourse: JSON.parse('{{ prag_result.discourse_relations_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '[]'),
+        context: JSON.parse('{{ prag_result.context_entities_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '[]'),
+        intents: JSON.parse('{{ prag_result.intent_classification_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '[]'),
+        timeline: JSON.parse('{{ prag_result.entity_timeline_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '[]'),
+        ambiguity: JSON.parse('{{ prag_result.ambiguity_resolution_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '[]'),
+        summary: JSON.parse('{{ prag_result.pragmatic_summary_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '{}'),
+        confidence: JSON.parse('{{ prag_result.confidence_scores_json | safe | replace("\\", "\\\\") | replace("'", "\\'") }}' || '{}')
+    };
+</script>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function runPragmatic() {
+        const docId = "{{ document.id if document else '' }}";
+        if (!docId) return;
+        
+        fetch(`/api/pragmatic/${docId}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) alert(data.error);
+                else location.reload();
+            })
+            .catch(err => alert("Error triggering analysis."));
+    }
+
+    if (typeof P_DATA !== 'undefined') {
+        // --- Populate Summary ---
+        const sumContainer = document.getElementById('summaryContainer');
+        if(P_DATA.summary.primary_intent) {
+            sumContainer.innerHTML = `
+                <div class="col-md-4">
+                    <div class="display-6 text-primary">${P_DATA.summary.primary_intent}</div>
+                    <div class="text-muted small text-uppercase fw-bold mt-2">Primary Intent</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="display-6 text-success">${P_DATA.summary.overall_communication_style}</div>
+                    <div class="text-muted small text-uppercase fw-bold mt-2">Communication Style</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="display-6 text-teal">${(P_DATA.summary.main_entities || []).length}</div>
+                    <div class="text-muted small text-uppercase fw-bold mt-2">Main Entities Tracked</div>
+                </div>
+            `;
+        }
+
+        // --- Populate Tables ---
+        const populateTable = (data, tableId, cols) => {
+            const tbody = document.getElementById(tableId);
+            if(!tbody) return;
+            tbody.innerHTML = '';
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                let html = '';
+                cols.forEach(col => {
+                    const val = item[col] || '';
+                    if (col === 'confidence') {
+                        html += `<td><span class="badge bg-secondary">${val}</span></td>`;
+                    } else if (col === 'reason') {
+                        html += `<td><small class="text-muted">${val}</small> <span class="badge bg-light text-dark ms-1">Conf: ${item.confidence || 'N/A'}</span></td>`;
+                    } else {
+                        html += `<td>${val}</td>`;
+                    }
+                });
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+        };
+
+        populateTable(P_DATA.coreference, 'corefTable', ['pronoun', 'resolved_to', 'reason']);
+        populateTable(P_DATA.discourse, 'discourseTable', ['marker', 'relation', 'reason']);
+        populateTable(P_DATA.intents, 'intentTable', ['sentence', 'intent', 'reason']);
+        populateTable(P_DATA.ambiguity, 'ambiguityTable', ['word', 'chosen_meaning', 'reason']);
+
+        // --- Charts ---
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#64748b';
+        
+        // A. Intent Chart
+        const intentCounts = {};
+        P_DATA.intents.forEach(i => { intentCounts[i.intent] = (intentCounts[i.intent] || 0) + 1; });
+        new Chart(document.getElementById('intentChart'), {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(intentCounts),
+                datasets: [{
+                    data: Object.values(intentCounts),
+                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6']
+                }]
+            },
+            options: { cutout: '70%', plugins: { legend: { position: 'right' } } }
+        });
+
+        // B. Discourse Chart
+        const discCounts = {};
+        P_DATA.discourse.forEach(d => { discCounts[d.relation] = (discCounts[d.relation] || 0) + 1; });
+        new Chart(document.getElementById('discourseChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(discCounts),
+                datasets: [{
+                    data: Object.values(discCounts),
+                    backgroundColor: ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981']
+                }]
+            },
+            options: { plugins: { legend: { position: 'right' } } }
+        });
+
+        // F. Confidence Chart
+        new Chart(document.getElementById('confidenceChart'), {
+            type: 'bar',
+            data: {
+                labels: ['High Confidence (≥0.8)', 'Low Confidence (<0.8)'],
+                datasets: [{
+                    label: 'Number of Inferences',
+                    data: [P_DATA.confidence.high_confidence_count || 0, P_DATA.confidence.low_confidence_count || 0],
+                    backgroundColor: ['#10b981', '#f59e0b']
+                }]
+            },
+            options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+
+        // C. Entity Timeline
+        const timeLabels = P_DATA.timeline.map(t => `Step ${t.step}`);
+        const timeActions = P_DATA.timeline.map(t => t.action);
+        new Chart(document.getElementById('timelineChart'), {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'Entity Actions Over Time',
+                    data: P_DATA.timeline.map((_, i) => i + 1),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const t = P_DATA.timeline[ctx.dataIndex];
+                                return `${t.entity} -> ${t.action}`;
+                            }
+                        }
+                    }
+                },
+                scales: { y: { display: false } }
+            }
+        });
+
+        // D. Context Networks (Bar showing chain lengths)
+        const ctxLabels = P_DATA.context.map(c => c.entity);
+        const ctxData = P_DATA.context.map(c => c.chain.length);
+        new Chart(document.getElementById('contextChart'), {
+            type: 'bar',
+            data: {
+                labels: ctxLabels,
+                datasets: [{
+                    label: 'References across document',
+                    data: ctxData,
+                    backgroundColor: '#14b8a6'
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+</script>
+<style>
+    .border-top-teal { border-top: 4px solid #14b8a6 !important; }
+    .text-teal { color: #14b8a6 !important; }
+    .btn-teal { background-color: #14b8a6; color: white; border: none; }
+    .btn-teal:hover { background-color: #0d9488; color: white; }
+</style>
+{% endblock %}

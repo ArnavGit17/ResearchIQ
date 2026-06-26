@@ -20,6 +20,8 @@ from services.morphology_service import MorphologyService
 from services.statistical_nlp_service import StatisticalNLPService
 from services.syntax_service import SyntaxService, HMMViterbiDemoService
 from services.semantic_service import SemanticService
+from models.pragmatic import PragmaticAnalysisResult
+from services.pragmatic_service import PragmaticService
 
 logger = logging.getLogger(__name__)
 
@@ -301,9 +303,56 @@ class NLPPipeline:
         
     @staticmethod
     def run_pragmatic_analysis(document_id: int) -> bool:
-        """Placeholder for Phase 8: Pragmatics"""
-        logger.info(f"Pragmatic analysis skipped - Phase 8 Placeholder")
-        return True
+        """Runs Phase 8 Pragmatic Analysis for a document."""
+        logger.info(f"Starting Pragmatic Analysis for Document {document_id}")
+
+        prep_result = PreprocessingResult.query.filter_by(document_id=document_id).first()
+        morph_result = MorphologyResult.query.filter_by(document_id=document_id).first()
+        syntax_result = SyntaxAnalysisResult.query.filter_by(document_id=document_id).first()
+        semantic_result = SemanticAnalysisResult.query.filter_by(document_id=document_id).first()
+
+        if not prep_result or not prep_result.sentences_json:
+            logger.error(f"Cannot run pragmatic analysis: Missing preprocessing for Document {document_id}")
+            return False
+
+        try:
+            sentences = json.loads(prep_result.sentences_json)
+            tokens = json.loads(morph_result.lemmatized_tokens_json) if morph_result and morph_result.lemmatized_tokens_json else []
+            
+            syntax_data = {}
+            if syntax_result:
+                syntax_data["pos_tags"] = json.loads(syntax_result.pos_tags_json) if syntax_result.pos_tags_json else []
+                
+            semantic_data = {}
+            if semantic_result and semantic_result.word_senses_json:
+                semantic_data = json.loads(semantic_result.word_senses_json)
+
+            results = PragmaticService.run_analysis(sentences, tokens, syntax_data, semantic_data)
+
+            prag_result = PragmaticAnalysisResult.query.filter_by(document_id=document_id).first()
+            if not prag_result:
+                prag_result = PragmaticAnalysisResult(document_id=document_id)
+                db.session.add(prag_result)
+
+            prag_result.coreference_json = json.dumps(results.get("coreference", []))
+            prag_result.discourse_relations_json = json.dumps(results.get("discourse_relations", []))
+            prag_result.context_entities_json = json.dumps(results.get("context_entities", []))
+            prag_result.intent_classification_json = json.dumps(results.get("intent_classification", []))
+            prag_result.entity_timeline_json = json.dumps(results.get("entity_timeline", []))
+            prag_result.discourse_markers_json = json.dumps(results.get("discourse_markers", []))
+            prag_result.ambiguity_resolution_json = json.dumps(results.get("ambiguity_resolution", []))
+            prag_result.confidence_scores_json = json.dumps(results.get("confidence_scores", {}))
+            prag_result.pragmatic_summary_json = json.dumps(results.get("pragmatic_summary", {}))
+            prag_result.processed_at = datetime.now(timezone.utc)
+
+            db.session.commit()
+            logger.info(f"Successfully ran pragmatic analysis for Document {document_id}")
+            return True
+
+        except Exception as e:
+            db.session.rollback()
+            logger.exception(f"Failed to run pragmatic analysis for Document {document_id}: {str(e)}")
+            return False
 
     @staticmethod
     def run_all(document_id: int) -> bool:

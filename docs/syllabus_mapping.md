@@ -53,10 +53,15 @@ This document tracks the mapping between the ResearchIQ platform modules and the
 - [x] Word Sense Disambiguation
 - [x] Semantic Analysis
 
-### Phase 8: Pragmatics
-- [ ] Sentiment Analysis
-- [ ] Discourse Analysis
-- [ ] Coreference Resolution
+### Phase 8: Pragmatics & Discourse Intelligence Engine
+  - **Topic:** Coreference resolution, intent classification, and entity timeline.
+  - **Code:** `services/pragmatic_service.py` -> `run_analysis()`
+  - **Tasks:**
+    - [x] Context Tracking and Discourse Analysis
+    - [x] Coreference Resolution
+    - [x] Intent Detection
+    - [x] Ambiguity Resolution integration
+  - **Status:** **IMPLEMENTATION** (Pragmatic Dashboard integrated)
 
 ### Phase 9: NLP Applications
 - [ ] Document Summarization (Extractive & Abstractive)

@@ -14,6 +14,7 @@ from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
 from models.semantic import SemanticAnalysisResult
+from models.pragmatic import PragmaticAnalysisResult
 from services.nlp_pipeline import NLPPipeline
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
