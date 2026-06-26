@@ -13,6 +13,7 @@ from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
+from models.semantic import SemanticAnalysisResult
 from services.nlp_pipeline import NLPPipeline
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -238,3 +239,56 @@ def get_syntax(document_id: int):
         "dependency":                _safe_load(syn.dependency_json),
         "processed_at":              syn.processed_at.isoformat() if syn.processed_at else None,
     })
+
+
+@api_bp.route("/semantic/<int:document_id>", methods=["POST"])
+@login_required
+def run_semantic(document_id: int):
+    """Run Semantic Analysis (Phase 7) on a document."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    success = NLPPipeline.run_semantic_analysis(document_id)
+
+    if success:
+        return jsonify({"status": "success", "message": "Semantic analysis completed"}), 200
+    else:
+        return jsonify({"error": "Failed. Ensure previous phases are complete."}), 500
+
+
+@api_bp.route("/semantic/<int:document_id>", methods=["GET"])
+@login_required
+def get_semantic(document_id: int):
+    """Return Semantic NLP results as JSON (Phase 7)."""
+    document = db.session.get(Document, document_id)
+    if not document or document.user_id != current_user.id:
+        return jsonify({"error": "Document not found or unauthorized"}), 404
+
+    sem = SemanticAnalysisResult.query.filter_by(document_id=document_id).first()
+    if not sem:
+        return jsonify({"error": "Semantic analysis has not been run yet"}), 404
+
+    def _safe_load(field, default=None):
+        try:
+            return json.loads(field) if field else (default if default is not None else [])
+        except Exception:
+            return default if default is not None else []
+
+    ws_packed = _safe_load(sem.word_senses_json, {})
+
+    return jsonify({
+        "document_id":          sem.document_id,
+        "ambiguity_score":      sem.ambiguity_score,
+        "synonyms":             _safe_load(sem.synonyms_json, {}),
+        "antonyms":             _safe_load(sem.antonyms_json, {}),
+        "hypernyms":            _safe_load(sem.hypernyms_json, {}),
+        "hyponyms":             _safe_load(sem.hyponyms_json, {}),
+        "semantic_pairs":       _safe_load(sem.semantic_pairs_json, []),
+        "semantic_similarity":  _safe_load(sem.semantic_similarity_json, []),
+        "word_senses":          ws_packed.get("wsd",      []) if isinstance(ws_packed, dict) else [],
+        "ambiguous_words":      ws_packed.get("ambiguous", []) if isinstance(ws_packed, dict) else [],
+        "wordnet_coverage":     ws_packed.get("coverage",  {}) if isinstance(ws_packed, dict) else {},
+        "processed_at":         sem.processed_at.isoformat() if sem.processed_at else None,
+    })
+

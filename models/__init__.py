@@ -8,5 +8,17 @@ from .preprocessing import PreprocessingResult
 from .morphology import MorphologyResult
 from .statistical_nlp import StatisticalAnalysisResult
 from .syntax import SyntaxAnalysisResult
+from .semantic import SemanticAnalysisResult
 
-__all__ = ["User", "Document", "Analysis", "Question", "Summary", "PreprocessingResult", "MorphologyResult", "StatisticalAnalysisResult", "SyntaxAnalysisResult"]
+__all__ = [
+    "User", 
+    "Document", 
+    "Analysis", 
+    "Question", 
+    "Summary", 
+    "PreprocessingResult", 
+    "MorphologyResult", 
+    "StatisticalAnalysisResult", 
+    "SyntaxAnalysisResult",
+    "SemanticAnalysisResult"
+]

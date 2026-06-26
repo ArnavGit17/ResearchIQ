@@ -13,6 +13,7 @@ from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
+from models.semantic import SemanticAnalysisResult
 from services.syntax_service import HMMViterbiDemoService
 
 nlp_bp = Blueprint("nlp", __name__, url_prefix="/nlp")
@@ -123,12 +124,27 @@ def syntax():
 @nlp_bp.route("/semantic")
 @login_required
 def semantic():
-    return render_template("nlp/placeholder.html",
-                           page="semantic",
-                           title="Semantic Analysis",
-                           icon="bi-bezier2",
-                           description="Named entity recognition, word sense disambiguation, and semantic role labelling.",
-                           status="Coming in Phase 2")
+    doc_id = request.args.get('doc', type=int)
+    document = None
+    sem_result = None
+    syn_result = None
+
+    if doc_id:
+        document = db.session.get(Document, doc_id)
+        if not document or document.user_id != current_user.id:
+            flash("Document not found or access denied.", "danger")
+            return redirect(url_for('document_bp.index'))
+
+        sem_result = SemanticAnalysisResult.query.filter_by(document_id=document.id).first()
+        syn_result = SyntaxAnalysisResult.query.filter_by(document_id=document.id).first()
+
+    return render_template(
+        "nlp/semantic.html",
+        page="semantic",
+        document=document,
+        sem_result=sem_result,
+        syn_result=syn_result,
+    )
 
 
 @nlp_bp.route("/pragmatic")

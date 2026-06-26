@@ -44,10 +44,14 @@ This document tracks the mapping between the ResearchIQ platform modules and the
 - [x] Syntax Analysis Dashboard
 
 ### Phase 7: Semantic Analysis
-- [ ] Named Entity Recognition (NER)
-- [ ] WordNet Integration
-- [ ] Word Sense Disambiguation (WSD)
-- [ ] Semantic Role Labeling
+- [x] WordNet Integration
+- [x] Synonyms
+- [x] Antonyms
+- [x] Hypernyms
+- [x] Hyponyms
+- [x] Semantic Similarity
+- [x] Word Sense Disambiguation
+- [x] Semantic Analysis
 
 ### Phase 8: Pragmatics
 - [ ] Sentiment Analysis

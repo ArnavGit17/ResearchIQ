@@ -28,6 +28,10 @@
                     <i class="bi bi-diagram-3" id="btn-syntax-icon"></i>
                     <span id="btn-syntax-text">Run Syntax Analysis</span>
                 </button>
+                <button id="btn-semantic" class="btn btn-danger text-white mt-2" data-doc-id="{{ document.id }}" {% if document.processing_status != 'success' %}disabled{% endif %}>
+                    <i class="bi bi-bezier2" id="btn-semantic-icon"></i>
+                    <span id="btn-semantic-text">Run Semantic Analysis</span>
+                </button>
             </div>
         </div>
     </div>
@@ -314,6 +318,48 @@ document.addEventListener('DOMContentLoaded', function() {
                 btnSyn.disabled = false;
                 icon.className = 'bi bi-diagram-3';
                 text.innerText = 'Run Syntax Analysis';
+            }
+        });
+    }
+    // ── Semantic Analysis button ───────────────────────────────────────────────
+    const btnSem = document.getElementById('btn-semantic');
+    if (btnSem) {
+        btnSem.addEventListener('click', async function() {
+            const docId = this.getAttribute('data-doc-id');
+            const icon  = document.getElementById('btn-semantic-icon');
+            const text  = document.getElementById('btn-semantic-text');
+            const csrf  = '{{ csrf_token() }}';
+
+            btnSem.disabled = true;
+
+            const steps = [
+                { url: `/api/preprocess/${docId}`,  label: 'Preprocessing…' },
+                { url: `/api/morphology/${docId}`,   label: 'Morphology…'    },
+                { url: `/api/statistical/${docId}`,  label: 'Statistical NLP…' },
+                { url: `/api/syntax/${docId}`,       label: 'Syntax Analysis…' },
+                { url: `/api/semantic/${docId}`,     label: 'Semantic Analysis…' },
+            ];
+
+            try {
+                for (const step of steps) {
+                    icon.className = 'bi bi-arrow-repeat spinner-border spinner-border-sm me-1';
+                    text.innerText = step.label;
+                    const res = await fetch(step.url, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
+                    });
+                    if (!res.ok) {
+                        const d = await res.json();
+                        throw new Error(d.error || `Step failed: ${step.label}`);
+                    }
+                }
+                window.location.href = `{{ url_for('nlp.semantic_nlp') }}?doc=${docId}`;
+            } catch (err) {
+                console.error(err);
+                alert(err.message || 'Semantic Analysis failed. See console for details.');
+                btnSem.disabled = false;
+                icon.className = 'bi bi-bezier2';
+                text.innerText = 'Run Semantic Analysis';
             }
         });
     }

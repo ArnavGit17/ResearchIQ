@@ -14,10 +14,12 @@ from models.preprocessing import PreprocessingResult
 from models.morphology import MorphologyResult
 from models.statistical_nlp import StatisticalAnalysisResult
 from models.syntax import SyntaxAnalysisResult
+from models.semantic import SemanticAnalysisResult
 from services.preprocessing_service import PreprocessingService
 from services.morphology_service import MorphologyService
 from services.statistical_nlp_service import StatisticalNLPService
 from services.syntax_service import SyntaxService, HMMViterbiDemoService
+from services.semantic_service import SemanticService
 
 logger = logging.getLogger(__name__)
 
@@ -242,9 +244,60 @@ class NLPPipeline:
         
     @staticmethod
     def run_semantic_analysis(document_id: int) -> bool:
-        """Placeholder for Phase 7: Semantic Analysis"""
-        logger.info(f"Semantic analysis skipped - Phase 7 Placeholder")
-        return True
+        """
+        Runs Phase 7 Semantic Analysis for a document.
+        Requires PreprocessingResult and MorphologyResult to exist.
+        """
+        logger.info(f"Starting Semantic Analysis for Document {document_id}")
+
+        prep_result = PreprocessingResult.query.filter_by(document_id=document_id).first()
+        morph_result = MorphologyResult.query.filter_by(document_id=document_id).first()
+        
+        if not prep_result or not prep_result.sentences_json or not morph_result or not morph_result.lemmatized_tokens_json:
+            logger.error(
+                f"Cannot run semantic analysis: Missing inputs for Document {document_id}"
+            )
+            return False
+
+        try:
+            sentences = json.loads(prep_result.sentences_json)
+            tokens = json.loads(morph_result.lemmatized_tokens_json)
+            
+            results = SemanticService.run_analysis(sentences, tokens)
+
+            sem_result = SemanticAnalysisResult.query.filter_by(document_id=document_id).first()
+            if not sem_result:
+                sem_result = SemanticAnalysisResult(document_id=document_id)
+                db.session.add(sem_result)
+
+            sem_result.synonyms_json             = json.dumps(results["synonyms"])
+            sem_result.antonyms_json             = json.dumps(results["antonyms"])
+            sem_result.hypernyms_json            = json.dumps(results["hypernyms"])
+            sem_result.hyponyms_json             = json.dumps(results["hyponyms"])
+            sem_result.semantic_pairs_json       = json.dumps(results["semantic_pairs"])
+            sem_result.semantic_similarity_json  = json.dumps(results["semantic_similarity"])
+
+            # Pack WSD results, ambiguous words list, and WordNet coverage stats
+            # into a single JSON field for UI and future-phase reuse.
+            sem_result.word_senses_json = json.dumps({
+                "wsd":      results["word_senses"],
+                "ambiguous": results["ambiguous_words"],
+                "coverage": results.get("wordnet_coverage", {}),
+            })
+
+            sem_result.ambiguity_score = results["ambiguity_score"]
+            sem_result.processed_at    = datetime.now(timezone.utc)
+
+            db.session.commit()
+            logger.info(f"Successfully ran semantic analysis for Document {document_id}")
+            return True
+
+        except Exception as e:
+            db.session.rollback()
+            logger.exception(
+                f"Failed to run semantic analysis for Document {document_id}: {str(e)}"
+            )
+            return False
         
     @staticmethod
     def run_pragmatic_analysis(document_id: int) -> bool:
@@ -274,7 +327,8 @@ class NLPPipeline:
             logger.warning(f"Syntax NLP failed for Document {document_id} – continuing pipeline")
         
         # Step 5: Semantic (Phase 7)
-        NLPPipeline.run_semantic_analysis(document_id)
+        if not NLPPipeline.run_semantic_analysis(document_id):
+            logger.warning(f"Semantic NLP failed for Document {document_id} – continuing pipeline")
         
         # Step 6: Pragmatic (Phase 8)
         NLPPipeline.run_pragmatic_analysis(document_id)

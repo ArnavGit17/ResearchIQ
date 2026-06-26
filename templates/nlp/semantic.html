@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+{% block title %}Semantic Analysis - ResearchIQ{% endblock %}
+{% block breadcrumb %}Semantic Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Phase 7 Semantic Analysis – page-local design tokens */
+:root {
+  --sem-syn:   #22c55e;
+  --sem-ant:   #ef4444;
+  --sem-hyper: #4f8ef7;
+  --sem-hypo:  #f59e0b;
+  --sem-wsd:   #a855f7;
+  --sem-sim:   #06b6d4;
+}
+.sem-section-head {
+  font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+  font-weight: 700; padding-bottom: .5rem; margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--riq-border);
+}
+.badge-syn   { background: rgba(34,197,94,.12);  color: var(--sem-syn);   border: 1px solid rgba(34,197,94,.25); }
+.badge-ant   { background: rgba(239,68,68,.12);  color: var(--sem-ant);   border: 1px solid rgba(239,68,68,.25); }
+.badge-hyper { background: rgba(79,142,247,.12); color: var(--sem-hyper); border: 1px solid rgba(79,142,247,.25);}
+.badge-hypo  { background: rgba(245,158,11,.12); color: var(--sem-hypo);  border: 1px solid rgba(245,158,11,.25);}
+.wup-bar  { height: 8px;  border-radius: 4px; background: rgba(6,182,212,.15); overflow: hidden; }
+.wup-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg,#06b6d4,#4f8ef7); transition: width .6s ease; }
+.wsd-card { border-left: 3px solid var(--sem-wsd); background: rgba(168,85,247,.04);
+            border-radius: 0 var(--r-md) var(--r-md) 0; padding: 1rem 1.25rem; margin-bottom: .75rem; }
+.amb-bar  { height: 6px;  border-radius: 3px; background: rgba(239,68,68,.15); overflow: hidden; }
+.amb-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#f59e0b,#ef4444); }
+.cov-tile { background: var(--riq-bg-2); border: 1px solid var(--riq-border); border-radius: var(--r-md);
+            padding: 1rem; text-align: center; transition: border-color var(--t-fast), transform var(--t-fast); }
+.cov-tile:hover { border-color: var(--riq-border-hover); transform: translateY(-2px); }
+.syn-count-bar  { height: 12px; border-radius: 6px; background: rgba(34,197,94,.15); overflow: hidden; }
+.syn-count-fill { height: 100%; border-radius: 6px; background: var(--sem-syn); transition: width .5s ease; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="page-title">Semantic Analysis Engine</h1>
+    <p class="page-subtitle">Phase 7 &nbsp;&middot;&nbsp; WordNet &nbsp;&middot;&nbsp; WSD &nbsp;&middot;&nbsp; Semantic Similarity &nbsp;&middot;&nbsp; Explainable AI</p>
+  </div>
+  {% if document %}
+  <a href="{{ url_for('document_bp.index') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Change Document
+  </a>
+  {% endif %}
+</div>
+
+{% if not document %}
+<div class="riq-card text-center p-5 mt-4">
+  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 rounded-circle p-4 mb-3">
+    <i class="bi bi-diagram-2 display-4 text-primary"></i>
+  </div>
+  <h4 class="mb-3">Select a Document</h4>
+  <p class="text-secondary mb-4">Please select a processed document to view its semantic properties.</p>
+  <a href="{{ url_for('document_bp.index') }}" class="btn btn-primary px-4">Go to Documents</a>
+</div>
+
+{% elif not syn_result %}
+<div class="riq-card text-center p-5 mt-4">
+  <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded-circle p-4 mb-3">
+    <i class="bi bi-exclamation-triangle display-4 text-warning"></i>
+  </div>
+  <h4 class="mb-3">Syntax Analysis Required</h4>
+  <p class="text-secondary mb-4">Please run Phase 6 Syntax Analysis before continuing to Semantics.</p>
+  <a href="{{ url_for('document_bp.preview', doc_id=document.id) }}" class="btn btn-warning px-4">Go to Document Preview</a>
+</div>
+
+{% elif not sem_result %}
+<div class="riq-card text-center p-5 mt-4">
+  <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 rounded-circle p-4 mb-3">
+    <i class="bi bi-bezier2 display-4 text-info"></i>
+  </div>
+  <h4 class="mb-3">Semantic Analysis Pending</h4>
+  <p class="text-secondary mb-4">Run Phase 7 to generate WordNet maps, semantic similarities, and Word Sense Disambiguation.</p>
+  <button id="btn-run-sem" class="btn btn-info text-white px-5" data-doc-id="{{ document.id }}">
+    <i class="bi bi-play-fill me-1" id="btn-run-sem-icon"></i>
+    <span id="btn-run-sem-text">Run Semantic Analysis</span>
+  </button>
+</div>
+
+{% else %}
+
+{# ── Unpack stored JSON ── #}
+{% set ws_json  = sem_result.word_senses_json  | fromjson if sem_result.word_senses_json  else {} %}
+{% set wsd      = ws_json.wsd       if ws_json.wsd       is defined else [] %}
+{% set amb      = ws_json.ambiguous if ws_json.ambiguous is defined else [] %}
+{% set coverage = ws_json.coverage  if ws_json.coverage  is defined else {} %}
+{% set pairs    = sem_result.semantic_pairs_json      | fromjson if sem_result.semantic_pairs_json      else [] %}
+{% set sims     = sem_result.semantic_similarity_json | fromjson if sem_result.semantic_similarity_json else [] %}
+{% set syns_map = sem_result.synonyms_json  | fromjson if sem_result.synonyms_json  else {} %}
+{% set ants_map = sem_result.antonyms_json  | fromjson if sem_result.antonyms_json  else {} %}
+{% set hyps_map = sem_result.hypernyms_json | fromjson if sem_result.hypernyms_json else {} %}
+{% set hypo_map = sem_result.hyponyms_json  | fromjson if sem_result.hyponyms_json  else {} %}
+
+{# ── Document header ── #}
+<div class="row mb-4"><div class="col-12">
+  <div class="riq-card p-3 d-flex justify-content-between align-items-center border-start border-4 border-info">
+    <div>
+      <h5 class="mb-1 d-flex align-items-center gap-2">
+        <i class="bi {{ document.icon }} text-info"></i> {{ document.original_filename }}
+      </h5>
+      <small class="text-muted">
+        Phase 7 completed: {{ sem_result.processed_at.strftime('%Y-%m-%d %H:%M') }}
+        &nbsp;&middot;&nbsp; Ambiguity Score:
+        <span class="text-warning fw-bold">{{ "%.2f"|format(sem_result.ambiguity_score) }}</span>
+      </small>
+    </div>
+    <button id="btn-rerun" class="btn btn-sm btn-outline-info" data-doc-id="{{ document.id }}">
+      <i class="bi bi-arrow-repeat" id="btn-rerun-icon"></i>
+      <span id="btn-rerun-text">Reprocess</span>
+    </button>
+  </div>
+</div></div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 8 - Semantic Statistics (KPI tiles)
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-bar-chart-steps me-2 text-primary"></i>Section 8 &middot; Semantic Statistics</div>
+<div class="row g-3 mb-5">
+  {% set stat_items = [
+    ("Terms Analyzed",   pairs|length,                                "text-info",    "bi-card-text"),
+    ("Synonyms Found",   syns_map.keys()|list|length,                "text-success", "bi-arrow-left-right"),
+    ("Antonyms Found",   ants_map.keys()|list|length,                "text-danger",  "bi-x-circle"),
+    ("Similarity Pairs", sims|length,                                "text-cyan",    "bi-link"),
+    ("WSD Contexts",     wsd|length,                                 "text-primary", "bi-funnel"),
+    ("Highly Ambiguous", amb|length,                                 "text-warning", "bi-exclamation-circle"),
+    ("Ambiguity Score",  "%.2f"|format(sem_result.ambiguity_score),  "text-orange",  "bi-shuffle"),
+    ("WordNet Coverage", (coverage.coverage_pct|string + "%" if coverage.coverage_pct is defined else "N/A"), "text-teal","bi-diagram-3"),
+  ] %}
+  {% for label, val, color, icon in stat_items %}
+  <div class="col-6 col-md-3">
+    <div class="riq-card text-center p-3 h-100 cov-tile">
+      <i class="bi {{ icon }} {{ color }} fs-2 mb-2 d-block"></i>
+      <h4 class="{{ color }} mb-0 fw-bold">{{ val }}</h4>
+      <small class="text-muted">{{ label }}</small>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ════════════════════════════════════════════════════════
+   VISUAL ANALYTICS - Charts A-F
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-graph-up me-2" style="color:#8b5cf6"></i>Visual Analytics &middot; Charts A&ndash;F</div>
+<div class="row g-3 mb-5">
+  <div class="col-md-4"><div class="riq-card h-100"><div class="riq-card-header"><h6 class="riq-card-title m-0">A &middot; Synonym Count Distribution</h6></div><div class="riq-card-body" style="height:230px;"><canvas id="chartSynCount"></canvas></div></div></div>
+  <div class="col-md-4"><div class="riq-card h-100"><div class="riq-card-header"><h6 class="riq-card-title m-0">B &middot; Hypernym Tree Statistics</h6></div><div class="riq-card-body" style="height:230px;"><canvas id="chartHyperTree"></canvas></div></div></div>
+  <div class="col-md-4"><div class="riq-card h-100"><div class="riq-card-header"><h6 class="riq-card-title m-0">C &middot; WUP Similarity Distribution</h6></div><div class="riq-card-body" style="height:230px;"><canvas id="chartSimDist"></canvas></div></div></div>
+  <div class="col-md-4"><div class="riq-card h-100"><div class="riq-card-header"><h6 class="riq-card-title m-0">D &middot; Ambiguous Word Frequency</h6></div><div class="riq-card-body" style="height:230px;"><canvas id="chartAmbFreq"></canvas></div></div></div>
+  <div class="col-md-4"><div class="riq-card h-100"><div class="riq-card-header"><h6 class="riq-card-title m-0">E &middot; Semantic Relationship Breakdown</h6></div><div class="riq-card-body" style="height:230px;"><canvas id="chartRelBreakdown"></canvas></div></div></div>
+  <div class="col-md-4"><div class="riq-card h-100"><div class="riq-card-header"><h6 class="riq-card-title m-0">F &middot; WordNet Coverage</h6></div><div class="riq-card-body" style="height:230px;"><canvas id="chartWordnetCov"></canvas></div></div></div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 1 - Synonym Analysis
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-arrow-left-right me-2" style="color:#22c55e"></i>Section 1 &middot; Synonym Analysis</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">WordNet Synonym Map</h6>
+    <span class="badge" style="background:rgba(34,197,94,.15);color:#22c55e;">{{ syns_map.keys()|list|length }} words mapped</span>
+  </div>
+  <div class="riq-card-body">
+    {% if syns_map %}
+    <div class="row g-2">
+      {% for word, syn_list in syns_map.items() %}
+      <div class="col-md-6 col-xl-4">
+        <div class="p-2 rounded" style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.12);">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="fw-bold font-monospace" style="color:#22c55e;">{{ word }}</span>
+            <small class="text-muted">{{ syn_list|length }} syn</small>
+          </div>
+          <div class="syn-count-bar mb-2"><div class="syn-count-fill" style="width:{{ [syn_list|length * 5, 100]|min }}%"></div></div>
+          <div class="d-flex flex-wrap gap-1">
+            {% for s in syn_list[:8] %}<span class="badge badge-syn font-monospace small">{{ s }}</span>{% endfor %}
+            {% if syn_list|length > 8 %}<span class="badge badge-syn small opacity-50">+{{ syn_list|length - 8 }} more</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3">No synonyms extracted for the top content words.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 2 - Antonym Analysis
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-x-circle me-2" style="color:#ef4444"></i>Section 2 &middot; Antonym Analysis</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">WordNet Antonym Map</h6>
+    <span class="badge" style="background:rgba(239,68,68,.15);color:#ef4444;">{{ ants_map.keys()|list|length }} words mapped</span>
+  </div>
+  <div class="riq-card-body">
+    {% if ants_map %}
+    <div class="row g-2">
+      {% for word, ant_list in ants_map.items() %}
+      <div class="col-md-6 col-xl-4">
+        <div class="p-2 rounded" style="background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.12);">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="fw-bold font-monospace" style="color:#ef4444;">{{ word }}</span>
+            <i class="bi bi-arrow-right text-muted small"></i>
+          </div>
+          <div class="d-flex flex-wrap gap-1">{% for a in ant_list %}<span class="badge badge-ant font-monospace small">{{ a }}</span>{% endfor %}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3">No antonyms detected. Antonyms are less common in WordNet; try documents with evaluative or descriptive language (e.g., "good", "fast", "happy").</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 3 - Hypernym Analysis
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-arrow-up-circle me-2" style="color:#4f8ef7"></i>Section 3 &middot; Hypernym Analysis (Broader Concepts)</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">WordNet Hypernym Map &mdash; is-a Hierarchy (Upward)</h6>
+    <span class="badge" style="background:rgba(79,142,247,.15);color:#4f8ef7;">{{ hyps_map.keys()|list|length }} words</span>
+  </div>
+  <div class="riq-card-body">
+    {% if hyps_map %}
+    <div class="row g-2">
+      {% for word, hyper_list in hyps_map.items() %}
+      <div class="col-md-6 col-xl-4">
+        <div class="p-2 rounded" style="background:rgba(79,142,247,.04);border:1px solid rgba(79,142,247,.12);">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="fw-bold font-monospace" style="color:#4f8ef7;">{{ word }}</span>
+            <i class="bi bi-arrow-up text-muted small"></i>
+          </div>
+          <div class="d-flex flex-wrap gap-1">
+            {% for h in hyper_list[:10] %}<span class="badge badge-hyper font-monospace small">{{ h }}</span>{% endfor %}
+            {% if hyper_list|length > 10 %}<span class="badge badge-hyper small opacity-50">+{{ hyper_list|length-10 }} more</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="text-muted text-center py-3">No hypernyms extracted.</p>{% endif %}
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 4 - Hyponym Analysis
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-arrow-down-circle me-2" style="color:#f59e0b"></i>Section 4 &middot; Hyponym Analysis (Narrower Concepts)</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">WordNet Hyponym Map &mdash; is-a Hierarchy (Downward)</h6>
+    <span class="badge" style="background:rgba(245,158,11,.15);color:#f59e0b;">{{ hypo_map.keys()|list|length }} words</span>
+  </div>
+  <div class="riq-card-body">
+    {% if hypo_map %}
+    <div class="row g-2">
+      {% for word, hypo_list in hypo_map.items() %}
+      <div class="col-md-6 col-xl-4">
+        <div class="p-2 rounded" style="background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.12);">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="fw-bold font-monospace" style="color:#f59e0b;">{{ word }}</span>
+            <i class="bi bi-arrow-down text-muted small"></i>
+          </div>
+          <div class="d-flex flex-wrap gap-1">
+            {% for h in hypo_list[:10] %}<span class="badge badge-hypo font-monospace small">{{ h }}</span>{% endfor %}
+            {% if hypo_list|length > 10 %}<span class="badge badge-hypo small opacity-50">+{{ hypo_list|length-10 }} more</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="text-muted text-center py-3">No hyponyms extracted.</p>{% endif %}
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 5 - Semantic Similarity
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-link me-2" style="color:#06b6d4"></i>Section 5 &middot; Semantic Similarity (Path &amp; WUP Metrics)</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">Word Pair Similarity Matrix</h6>
+    <div class="d-flex gap-2">
+      <span class="badge bg-success bg-opacity-20 text-success small">path_similarity</span>
+      <span class="badge bg-info bg-opacity-20 text-info small">wup_similarity</span>
+    </div>
+  </div>
+  <div class="riq-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover table-sm m-0">
+        <thead><tr>
+          <th class="ps-3 py-2 text-muted">Word 1</th>
+          <th class="py-2 text-muted">Word 2</th>
+          <th class="py-2 text-success">Path Sim</th>
+          <th class="py-2 text-info">WUP Sim</th>
+          <th class="py-2 text-light">WUP Gauge</th>
+          <th class="py-2 text-warning">Strength</th>
+        </tr></thead>
+        <tbody>
+          {% for s in sims %}<tr>
+            <td class="ps-3 font-monospace fw-bold text-light">{{ s.word1 }}</td>
+            <td class="font-monospace fw-bold text-light">{{ s.word2 }}</td>
+            <td class="text-success">{{ "%.3f"|format(s.path_similarity) }}</td>
+            <td class="text-info">{{ "%.3f"|format(s.wup_similarity) }}</td>
+            <td style="min-width:120px;"><div class="wup-bar"><div class="wup-fill" style="width:{{ (s.wup_similarity*100)|round }}%"></div></div></td>
+            <td>
+              <span class="badge small
+                {% if s.wup_similarity >= 0.7 %}bg-success bg-opacity-20 text-success
+                {% elif s.wup_similarity >= 0.4 %}bg-warning bg-opacity-20 text-warning
+                {% else %}bg-secondary bg-opacity-20 text-secondary{% endif %}">
+                {{ s.strength if s.strength is defined else "—" }}
+              </span>
+            </td>
+          </tr>{% else %}<tr><td colspan="6" class="text-center py-4 text-muted">No similarities calculated.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SECTION 6 + SECTION 10 - WSD + Explainability
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-funnel me-2" style="color:#a855f7"></i>Section 6 &amp; 10 &middot; Word Sense Disambiguation &mdash; Explainable AI</div>
+<div class="mb-3 p-3 rounded" style="background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.15);">
+  <div class="d-flex align-items-start gap-2">
+    <i class="bi bi-lightbulb text-warning mt-1"></i>
+    <div class="small">
+      <strong class="text-light">Lesk Algorithm</strong> selects the synset whose definition overlaps most with the
+      surrounding context words. Each entry below shows the <em>word</em>, <em>context sentence</em>,
+      <em>chosen sense</em>, <em>synset ID &amp; POS</em>, and an <em>evidential reason</em> — fulfilling the
+      Explainable AI requirement for Phase 7.
+    </div>
+  </div>
+</div>
+
+{% if wsd %}
+<div class="mb-5">
+  {% for w in wsd %}
+  <div class="wsd-card">
+    <div class="row g-2 align-items-start">
+      <div class="col-md-2">
+        <span class="font-monospace fw-bold fs-5" style="color:#a855f7;">{{ w.word }}</span>
+        {% if w.synset_name is defined %}<br><code class="small text-muted">{{ w.synset_name }}</code>{% endif %}
+        {% if w.pos is defined %}<br><span class="badge bg-secondary bg-opacity-20 text-secondary small mt-1" style="width:fit-content;">{{ w.pos }}</span>{% endif %}
+      </div>
+      <div class="col-md-4">
+        <div class="small text-muted fw-semibold mb-1" style="font-size:.68rem;letter-spacing:.06em;">CONTEXT SENTENCE</div>
+        <p class="small text-light fst-italic mb-0">"{{ w.context }}"</p>
+      </div>
+      <div class="col-md-3">
+        <div class="small text-muted fw-semibold mb-1" style="font-size:.68rem;letter-spacing:.06em;">CHOSEN SENSE</div>
+        <span class="badge d-inline-block text-wrap text-start" style="background:rgba(168,85,247,.15);color:#a855f7;max-width:100%;font-size:.78rem;line-height:1.4;">{{ w.sense }}</span>
+      </div>
+      <div class="col-md-3">
+        <div class="small text-muted fw-semibold mb-1" style="font-size:.68rem;letter-spacing:.06em;"><i class="bi bi-shield-check me-1 text-warning"></i>REASON (EVIDENCE)</div>
+        <p class="small text-warning mb-0">{{ w.reason }}</p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="riq-card text-center p-4 mb-5">
+  <i class="bi bi-info-circle text-muted fs-3 mb-2 d-block"></i>
+  <p class="text-muted mb-0 small">No highly ambiguous words found in sentences to disambiguate.</p>
+</div>
+{% endif %}
+
+{# ════════════════════════════════════════════════════════
+   SECTION 7 - Ambiguity Analysis
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-shuffle me-2 text-warning"></i>Section 7 &middot; Ambiguity Analysis</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">Most Ambiguous Terms (multiple WordNet senses)</h6>
+    <span class="badge bg-warning bg-opacity-20 text-warning">Ambiguity Score: {{ "%.2f"|format(sem_result.ambiguity_score) }}</span>
+  </div>
+  <div class="riq-card-body">
+    {% if amb %}
+    {% set max_senses = amb[0].senses if amb else 1 %}
+    <div class="row g-2">
+      {% for a in amb %}
+      <div class="col-md-6 col-xl-4">
+        <div class="d-flex align-items-center gap-3 p-2 rounded" style="background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.15);">
+          <div class="flex-shrink-0 text-center" style="width:52px;">
+            <span class="fw-bold fs-4 text-warning">{{ a.senses }}</span>
+            <div class="text-muted" style="font-size:.62rem;">senses</div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="fw-bold font-monospace text-light mb-1">{{ a.word }}</div>
+            <div class="amb-bar"><div class="amb-fill" style="width:{{ [a.senses / max_senses * 100, 100]|min|round }}%"></div></div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3 mb-0">No highly ambiguous words found (threshold: &gt;2 WordNet senses).</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   Semantic Pairs Storage - Full Accordion (future-phase reuse)
+═════════════════════════════════════════════════════════ #}
+<div class="sem-section-head"><i class="bi bi-diagram-2 me-2 text-info"></i>Semantic Pairs Storage (All Relations &middot; Reusable by Future Phases)</div>
+<div class="riq-card mb-5">
+  <div class="riq-card-header d-flex justify-content-between align-items-center">
+    <h6 class="riq-card-title m-0">Full WordNet Ontology Map</h6>
+    <small class="text-muted">Synonyms &middot; Antonyms &middot; Hypernyms &middot; Hyponyms per term</small>
+  </div>
+  <div class="riq-card-body p-0">
+    <div class="accordion accordion-flush" id="wordnetAccordion">
+      {% for p in pairs %}
+      <div class="accordion-item bg-transparent border-bottom border-secondary border-opacity-25">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed bg-transparent text-light fw-bold font-monospace" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#wn{{ loop.index }}">
+            <i class="bi bi-tag text-info me-2 small"></i> {{ p.word }}
+            <span class="ms-3 d-flex gap-2">
+              {% if p.synonyms %}<span class="badge badge-syn small">{{ p.synonyms|length }} syn</span>{% endif %}
+              {% if p.antonyms %}<span class="badge badge-ant small">{{ p.antonyms|length }} ant</span>{% endif %}
+              {% if p.hypernyms %}<span class="badge badge-hyper small">{{ p.hypernyms|length }} hyp</span>{% endif %}
+              {% if p.hyponyms %}<span class="badge badge-hypo small">{{ p.hyponyms|length }} hypo</span>{% endif %}
+            </span>
+          </button>
+        </h2>
+        <div id="wn{{ loop.index }}" class="accordion-collapse collapse">
+          <div class="accordion-body row g-3">
+            <div class="col-md-6 col-xl-3">
+              <small class="fw-bold d-block mb-2" style="color:#22c55e;"><i class="bi bi-arrow-left-right me-1"></i>Synonyms</small>
+              <div class="d-flex flex-wrap gap-1">{% for s in p.synonyms %}<span class="badge badge-syn font-monospace small">{{ s }}</span>{% else %}<span class="text-muted small">None</span>{% endfor %}</div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+              <small class="fw-bold d-block mb-2" style="color:#ef4444;"><i class="bi bi-x-circle me-1"></i>Antonyms</small>
+              <div class="d-flex flex-wrap gap-1">{% for a in p.antonyms %}<span class="badge badge-ant font-monospace small">{{ a }}</span>{% else %}<span class="text-muted small">None</span>{% endfor %}</div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+              <small class="fw-bold d-block mb-2" style="color:#4f8ef7;"><i class="bi bi-arrow-up-circle me-1"></i>Hypernyms</small>
+              <div class="d-flex flex-wrap gap-1">{% for h in p.hypernyms %}<span class="badge badge-hyper font-monospace small">{{ h }}</span>{% else %}<span class="text-muted small">None</span>{% endfor %}</div>
+            </div>
+            <div class="col-md-6 col-xl-3">
+              <small class="fw-bold d-block mb-2" style="color:#f59e0b;"><i class="bi bi-arrow-down-circle me-1"></i>Hyponyms</small>
+              <div class="d-flex flex-wrap gap-1">{% for h in p.hyponyms %}<span class="badge badge-hypo font-monospace small">{{ h }}</span>{% else %}<span class="text-muted small">None</span>{% endfor %}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No semantic pairs generated.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endif %}{# end sem_result #}
+{% endblock %}
+
+{% block scripts %}
+{% if document and sem_result %}
+<script>
+const _pairs = {{ sem_result.semantic_pairs_json | safe if sem_result.semantic_pairs_json else "[]" }};
+const _sims  = {{ sem_result.semantic_similarity_json | safe if sem_result.semantic_similarity_json else "[]" }};
+const _wsRaw = {{ sem_result.word_senses_json | safe if sem_result.word_senses_json else "{}" }};
+const _ws    = (typeof _wsRaw === "object" && _wsRaw !== null) ? _wsRaw : {};
+const _amb   = _ws.ambiguous || [];
+const _cov   = _ws.coverage  || {};
+
+Chart.defaults.color = "#9ca3af";
+Chart.defaults.borderColor = "rgba(255,255,255,0.07)";
+
+document.addEventListener("DOMContentLoaded", () => {
+  const mkBar = (labels, data, color, label) => ({
+    labels,
+    datasets: [{ label, data, backgroundColor: color + "99", borderColor: color, borderWidth: 1, borderRadius: 3 }]
+  });
+  const barOpts = () => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { ticks: { font: { family: "monospace", size: 10 }, maxRotation: 35 } }, y: { beginAtZero: true } }
+  });
+
+  const synW   = _pairs.filter(p => p.synonyms  && p.synonyms.length  > 0).slice(0,12);
+  const hyperW = _pairs.filter(p => p.hypernyms && p.hypernyms.length > 0).slice(0,12);
+  const bins = [0,0,0,0,0];
+  _sims.forEach(s => {
+    const v = s.wup_similarity || 0;
+    if      (v < 0.2) bins[0]++;
+    else if (v < 0.4) bins[1]++;
+    else if (v < 0.6) bins[2]++;
+    else if (v < 0.8) bins[3]++;
+    else              bins[4]++;
+  });
+
+  const ctxA = document.getElementById("chartSynCount");
+  if (ctxA && synW.length)
+    new Chart(ctxA, { type:"bar", data: mkBar(synW.map(p=>p.word), synW.map(p=>p.synonyms.length),  "#22c55e","Syn"), options: barOpts() });
+
+  const ctxB = document.getElementById("chartHyperTree");
+  if (ctxB && hyperW.length)
+    new Chart(ctxB, { type:"bar", data: mkBar(hyperW.map(p=>p.word), hyperW.map(p=>p.hypernyms.length),"#4f8ef7","Hyp"), options: barOpts() });
+
+  const ctxC = document.getElementById("chartSimDist");
+  if (ctxC)
+    new Chart(ctxC, { type:"bar", data: mkBar(["0-0.2","0.2-0.4","0.4-0.6","0.6-0.8","0.8-1.0"], bins,"#06b6d4","Pairs"), options: barOpts() });
+
+  const ctxD = document.getElementById("chartAmbFreq");
+  if (ctxD && _amb.length)
+    new Chart(ctxD, { type:"bar", data: mkBar(_amb.slice(0,12).map(a=>a.word), _amb.slice(0,12).map(a=>a.senses),"#ef4444","Senses"), options: barOpts() });
+
+  let synC=0,antC=0,hyperC=0,hypoC=0;
+  _pairs.forEach(p => {
+    synC   += (p.synonyms  || []).length;
+    antC   += (p.antonyms  || []).length;
+    hyperC += (p.hypernyms || []).length;
+    hypoC  += (p.hyponyms  || []).length;
+  });
+  const ctxE = document.getElementById("chartRelBreakdown");
+  if (ctxE) new Chart(ctxE, {
+    type: "doughnut",
+    data: { labels:["Synonyms","Antonyms","Hypernyms","Hyponyms"],
+            datasets:[{ data:[synC,antC,hyperC,hypoC],
+              backgroundColor:["rgba(34,197,94,.7)","rgba(239,68,68,.7)","rgba(79,142,247,.7)","rgba(245,158,11,.7)"],
+              borderWidth:1 }] },
+    options: { responsive:true, maintainAspectRatio:false,
+               plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, padding:8 } } } }
+  });
+
+  const ctxF = document.getElementById("chartWordnetCov");
+  if (ctxF) new Chart(ctxF, {
+    type: "doughnut",
+    data: { labels:["In WordNet","Not in WordNet"],
+            datasets:[{ data:[_cov.in_wordnet||0, _cov.not_in_wordnet||0],
+              backgroundColor:["rgba(20,184,166,.75)","rgba(100,116,139,.5)"], borderWidth:1 }] },
+    options: { responsive:true, maintainAspectRatio:false,
+               plugins:{ legend:{ position:"bottom", labels:{ boxWidth:10, padding:8 } } } }
+  });
+});
+</script>
+{% endif %}
+
+{% if document %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  function attachBtn(id, docId) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const icon = document.getElementById(id + "-icon") || btn.querySelector("i");
+      const txt  = document.getElementById(id + "-text");
+      btn.disabled = true;
+      if (icon) icon.className = "spinner-border spinner-border-sm me-1";
+      if (txt)  txt.innerText  = "Processing…";
+      try {
+        const res  = await fetch("/api/semantic/" + docId, {
+          method: "POST",
+          headers: { "X-CSRFToken": "{{ csrf_token() }}", "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+        if (res.ok) { window.location.reload(); }
+        else {
+          alert(data.error || "Semantic analysis failed.");
+          btn.disabled = false;
+          if (icon) icon.className = "bi bi-play-fill me-1";
+          if (txt)  txt.innerText  = "Run Semantic Analysis";
+        }
+      } catch (e) {
+        alert("Connection error. Please try again.");
+        btn.disabled = false;
+      }
+    });
+  }
+  attachBtn("btn-run-sem", {{ document.id }});
+  attachBtn("btn-rerun",   {{ document.id }});
+});
+</script>
+{% endif %}
+{% endblock %}
